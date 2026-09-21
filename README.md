@@ -38,5 +38,4 @@ Iniciar el servidor:
 npm run dev
 
 La API GraphQL se ejecuta en:
-
 http://localhost:4000/graphql
