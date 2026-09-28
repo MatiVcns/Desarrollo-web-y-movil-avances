@@ -1,76 +1,595 @@
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Weird Style</title>
+
+    <title>Weird Style | Streetwear</title>
+
     <link rel="stylesheet" href="styles.css">
 </head>
 
 <body>
 
-    <header>
-        <h1>WEIRD STYLE</h1>
+    <!-- =========================
+         HEADER
+    ========================== -->
 
-        <nav>
-            <select id="categoria">
-                <option value="todos">Tipo de ropa</option>
-                <option value="poleras">Poleras</option>
-                <option value="polerones">Polerones</option>
-                <option value="pantalones">Pantalones</option>
-                <option value="gorros">Gorros</option>
-            </select>
+    <header class="header">
 
-            <input type="text" id="buscador" placeholder="Buscar producto...">
+        <a href="#inicio" class="logo">
+            WEIRD STYLE
+        </a>
+
+        <nav class="menu">
+            <a href="#inicio">Inicio</a>
+            <a href="#productos">Productos</a>
+            <a href="#nosotros">Nosotros</a>
         </nav>
+
+        <div class="acciones">
+
+            <input
+                type="text"
+                id="buscador"
+                placeholder="Buscar..."
+                aria-label="Buscar productos"
+            >
+
+            <button
+                id="boton-carrito"
+                class="carrito"
+                aria-label="Carrito"
+            >
+                🛒
+                <span id="contador-carrito">0</span>
+            </button>
+
+        </div>
+
     </header>
+
+
+    <!-- =========================
+         CONTENIDO PRINCIPAL
+    ========================== -->
 
     <main>
 
-        <section class="banner">
-            <h2>Ropa con actitud</h2>
-            <p>Encuentra tu estilo en Weird Style.</p>
-            <button>Elige tu prenda</button>
+
+        <!-- =========================
+             HERO
+        ========================== -->
+
+        <section class="hero" id="inicio">
+
+            <div class="hero-contenido">
+
+                <p class="hero-subtitulo">
+                    NUEVA COLECCIÓN 2026
+                </p>
+
+                <h1>
+                    TU ESTILO.<br>
+                    TUS REGLAS.
+                </h1>
+
+                <p>
+                    Streetwear diseñado para quienes
+                    prefieren vestir diferente.
+                </p>
+
+                <a
+                    href="#productos"
+                    class="boton-principal"
+                >
+                    VER COLECCIÓN
+                </a>
+
+            </div>
+
         </section>
 
-        <section class="productos">
-            <h2>Productos destacados</h2>
+
+        <!-- =========================
+             PRODUCTOS
+        ========================== -->
+
+        <section
+            class="seccion-productos"
+            id="productos"
+        >
+
+            <div class="titulo-seccion">
+
+                <p>WEIRD STYLE</p>
+
+                <h2>
+                    PRODUCTOS DESTACADOS
+                </h2>
+
+            </div>
+
+
+            <!-- FILTROS -->
+
+            <div class="filtros">
+
+                <button
+                    class="filtro activo"
+                    data-filtro="todos"
+                >
+                    Todos
+                </button>
+
+                <button
+                    class="filtro"
+                    data-filtro="poleras"
+                >
+                    Poleras
+                </button>
+
+                <button
+                    class="filtro"
+                    data-filtro="polerones"
+                >
+                    Polerones
+                </button>
+
+                <button
+                    class="filtro"
+                    data-filtro="pantalones"
+                >
+                    Pantalones
+                </button>
+
+                <button
+                    class="filtro"
+                    data-filtro="gorros"
+                >
+                    Gorros
+                </button>
+
+            </div>
+
+
+            <!-- =========================
+                 LISTA DE PRODUCTOS
+            ========================== -->
 
             <div class="lista-productos">
 
-                <article class="producto">
-                    <div class="imagen-producto">Imagen producto</div>
-                    <h3>Polera Oversize</h3>
-                    <p>$19.990</p>
+
+                <!-- POLERA -->
+
+                <article
+                    class="producto"
+                    data-categoria="poleras"
+                    data-imagen="polera"
+                >
+
+                    <div class="imagen-producto">
+
+                        <img
+                            src="images/polera.png"
+                            alt="Polera Oversize negra con diseño de cruz blanca"
+                        >
+
+                    </div>
+
+                    <div class="info-producto">
+
+                        <h3>
+                            Cross Oversize Tee
+                        </h3>
+
+                        <p class="categoria-producto">
+                            Poleras
+                        </p>
+
+                        <p class="precio">
+                            $19.990
+                        </p>
+
+                        <button
+                            class="agregar-carrito"
+                            data-producto="Cross Oversize Tee"
+                        >
+                            Agregar al carrito
+                        </button>
+
+                    </div>
+
                 </article>
 
-                <article class="producto">
-                    <div class="imagen-producto">Imagen producto</div>
-                    <h3>Polerón Weird</h3>
-                    <p>$29.990</p>
+
+                <!-- POLERÓN -->
+
+                <article
+                    class="producto"
+                    data-categoria="polerones"
+                    data-imagen="poleron"
+                >
+
+                    <div class="imagen-producto">
+
+                        <img
+                            src="images/poleron.png"
+                            alt="Polerón Oversize azul con diseño de olas"
+                        >
+
+                    </div>
+
+                    <div class="info-producto">
+
+                        <h3>
+                            Ocean Oversize Hoodie
+                        </h3>
+
+                        <p class="categoria-producto">
+                            Polerones
+                        </p>
+
+                        <p class="precio">
+                            $34.990
+                        </p>
+
+                        <button
+                            class="agregar-carrito"
+                            data-producto="Ocean Oversize Hoodie"
+                        >
+                            Agregar al carrito
+                        </button>
+
+                    </div>
+
                 </article>
 
-                <article class="producto">
-                    <div class="imagen-producto">Imagen producto</div>
-                    <h3>Gorro Street</h3>
-                    <p>$14.990</p>
+
+                <!-- PANTALÓN -->
+
+                <article
+                    class="producto"
+                    data-categoria="pantalones"
+                    data-imagen="pantalon"
+                >
+
+                    <div class="imagen-producto">
+
+                        <img
+                            src="images/pantalon.png"
+                            alt="Pantalón cargo beige con diseño de cerezos"
+                        >
+
+                    </div>
+
+                    <div class="info-producto">
+
+                        <h3>
+                            Sakura Cargo
+                        </h3>
+
+                        <p class="categoria-producto">
+                            Pantalones
+                        </p>
+
+                        <p class="precio">
+                            $32.990
+                        </p>
+
+                        <button
+                            class="agregar-carrito"
+                            data-producto="Sakura Cargo"
+                        >
+                            Agregar al carrito
+                        </button>
+
+                    </div>
+
+                </article>
+
+
+                <!-- GORRO -->
+
+                <article
+                    class="producto"
+                    data-categoria="gorros"
+                    data-imagen="gorro"
+                >
+
+                    <div class="imagen-producto">
+
+                        <img
+                            src="images/gorro.png"
+                            alt="Gorro negro con luna roja"
+                        >
+
+                    </div>
+
+                    <div class="info-producto">
+
+                        <h3>
+                            Red Moon Beanie
+                        </h3>
+
+                        <p class="categoria-producto">
+                            Gorros
+                        </p>
+
+                        <p class="precio">
+                            $14.990
+                        </p>
+
+                        <button
+                            class="agregar-carrito"
+                            data-producto="Red Moon Beanie"
+                        >
+                            Agregar al carrito
+                        </button>
+
+                    </div>
+
                 </article>
 
             </div>
+
+
+            <!-- SIN RESULTADOS -->
+
+            <p
+                id="sin-resultados"
+                class="sin-resultados"
+            >
+                No encontramos productos.
+            </p>
+
         </section>
 
-        <section class="gorros">
-            <h2>Tipos de gorro</h2>
-            <p>Encuentra el que mejor combine con tu estilo.</p>
-            <button>Empezar</button>
+
+        <!-- =========================
+             NOSOTROS
+        ========================== -->
+
+        <section
+            class="nosotros"
+            id="nosotros"
+        >
+
+            <div class="nosotros-contenido">
+
+                <p>
+                    WEIRD STYLE
+                </p>
+
+                <h2>
+                    NO SIGAS EL ESTILO.<br>
+                    CREA EL TUYO.
+                </h2>
+
+                <p class="descripcion">
+
+                    Weird Style nace para quienes buscan
+                    una forma diferente de vestir.
+
+                    Diseños urbanos, oversized y con
+                    personalidad propia.
+
+                </p>
+
+                <a
+                    href="#productos"
+                    class="boton-secundario"
+                >
+                    DESCUBRIR
+                </a>
+
+            </div>
+
         </section>
 
     </main>
 
+
+    <!-- =========================
+         FOOTER
+    ========================== -->
+
     <footer>
-        <p>Contacto | Redes Sociales | Weird Style 2026</p>
+
+        <div>
+
+            <h3>
+                WEIRD STYLE
+            </h3>
+
+            <p>
+                Streetwear · Santiago, Chile
+            </p>
+
+        </div>
+
+        <div>
+
+            <p>
+                Instagram · TikTok · Contacto
+            </p>
+
+            <p>
+                © 2026 Weird Style
+            </p>
+
+        </div>
+
     </footer>
 
+
+    <!-- =========================
+         VISTA DETALLE PRODUCTO
+    ========================== -->
+
+    <div id="modal-producto" class="modal-producto">
+
+        <div class="modal-contenido">
+
+
+            <!-- BOTÓN CERRAR -->
+
+            <button
+                id="cerrar-modal"
+                class="cerrar-modal"
+                aria-label="Cerrar producto"
+            >
+                ×
+            </button>
+
+
+            <!-- =========================
+                 LADO IZQUIERDO - IMAGEN
+            ========================== -->
+
+            <div class="modal-imagen">
+
+                <img
+                    id="modal-imagen-principal"
+                    src=""
+                    alt="Producto Weird Style"
+                >
+
+
+                <!-- FLECHA IZQUIERDA -->
+
+                <button
+                    id="imagen-anterior"
+                    class="flecha-imagen flecha-izquierda"
+                    aria-label="Imagen anterior"
+                >
+                    ‹
+                </button>
+
+
+                <!-- FLECHA DERECHA -->
+
+                <button
+                    id="imagen-siguiente"
+                    class="flecha-imagen flecha-derecha"
+                    aria-label="Imagen siguiente"
+                >
+                    ›
+                </button>
+
+
+                <!-- INDICADOR DE IMÁGENES -->
+
+                <div class="indicador-imagenes">
+
+                    <span class="punto-imagen activo"></span>
+                    <span class="punto-imagen"></span>
+                    <span class="punto-imagen"></span>
+
+                </div>
+
+            </div>
+
+
+            <!-- =========================
+                 LADO DERECHO - INFORMACIÓN
+            ========================== -->
+
+            <div class="modal-info">
+
+                <p class="modal-marca">
+                    WEIRD STYLE
+                </p>
+
+                <h2 id="modal-nombre">
+                    Producto
+                </h2>
+
+                <p
+                    id="modal-precio"
+                    class="modal-precio"
+                >
+                    $0
+                </p>
+
+
+                <p class="modal-descripcion">
+                    Diseño exclusivo Weird Style.
+                    Streetwear oversized creado para
+                    quienes buscan vestir diferente.
+                </p>
+
+
+                <!-- TALLAS -->
+
+                <div class="selector-talla">
+
+                    <p>Selecciona tu talla</p>
+
+                    <div class="tallas">
+
+                        <button class="talla">S</button>
+                        <button class="talla">M</button>
+                        <button class="talla">L</button>
+                        <button class="talla">XL</button>
+
+                    </div>
+
+                </div>
+
+
+                <!-- CANTIDAD -->
+
+                <div class="selector-cantidad">
+
+                    <p>Cantidad</p>
+
+                    <div class="cantidad-controles">
+
+                        <button
+                            id="restar-cantidad"
+                            aria-label="Restar cantidad"
+                        >
+                            −
+                        </button>
+
+                        <span id="cantidad-producto">
+                            1
+                        </span>
+
+                        <button
+                            id="sumar-cantidad"
+                            aria-label="Sumar cantidad"
+                        >
+                            +
+                        </button>
+
+                    </div>
+
+                </div>
+
+
+                <!-- AGREGAR AL CARRITO -->
+
+                <button
+                    id="modal-agregar-carrito"
+                    class="modal-agregar"
+                >
+                    AGREGAR AL CARRITO
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+
+    <!-- JAVASCRIPT -->
+
     <script src="script.js"></script>
+
 </body>
+
 </html>
