@@ -642,3 +642,35 @@ modalAgregarCarrito.addEventListener("click", function () {
     }, 1000);
 
 });
+// ==============================
+// PRUEBA DE CONEXIÓN CON FASTAPI
+// ==============================
+
+async function probarConexionBackend() {
+    try {
+        const respuesta = await fetch(
+            "http://127.0.0.1:8000/productos"
+        );
+
+        if (!respuesta.ok) {
+            throw new Error(
+                `Error HTTP: ${respuesta.status}`
+            );
+        }
+
+        const productosBackend = await respuesta.json();
+
+        console.log(
+            "Productos recibidos desde MongoDB:",
+            productosBackend
+        );
+
+    } catch (error) {
+        console.error(
+            "Error al conectar con FastAPI:",
+            error
+        );
+    }
+}
+
+probarConexionBackend();

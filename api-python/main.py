@@ -1,6 +1,7 @@
 from typing import List, Optional
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
+from fastapi.middleware.cors import CORSMiddleware
 
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
@@ -34,6 +35,20 @@ app = FastAPI(
     title="Weird Style API",
     version="1.0.0",
     lifespan=lifespan
+)
+
+# Permitir la conexión del frontend con el backend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://127.0.0.1:5500",
+        "http://localhost:5500",
+        "http://127.0.0.1:5501",
+        "http://localhost:5501"
+    ],
+    allow_credentials=False,
+    allow_methods=["GET"],
+    allow_headers=["Content-Type"]
 )
 
 
