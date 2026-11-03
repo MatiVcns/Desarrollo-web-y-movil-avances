@@ -3,7 +3,7 @@
 // ==============================
 
 const buscador = document.getElementById("buscador");
-const productos = document.querySelectorAll(".producto");
+let productos = document.querySelectorAll(".producto");
 const filtros = document.querySelectorAll(".filtro");
 const botonesCarrito = document.querySelectorAll(".agregar-carrito");
 const contadorCarrito = document.getElementById("contador-carrito");
@@ -126,7 +126,6 @@ filtros.forEach(function (boton) {
 // ==============================
 
 botonesCarrito.forEach(function (boton) {
-
     boton.addEventListener("click", function () {
 
         cantidadCarrito++;
@@ -136,7 +135,7 @@ botonesCarrito.forEach(function (boton) {
 
 
         // Cambio temporal del botón
-
+ 
         const textoOriginal =
             boton.textContent;
 
@@ -642,6 +641,33 @@ modalAgregarCarrito.addEventListener("click", function () {
     }, 1000);
 
 });
+
+
+
+function mostrarProductosBackend(productosBackend) {
+    const contenedor = document.querySelector(".lista-productos");
+
+    if (!contenedor) {
+        console.error("No se encontró el contenedor de productos");
+        return;
+    }
+
+    const productosActivos = productosBackend.filter(
+        producto => producto.activo === true
+    );
+
+    console.log(
+        "Productos activos disponibles:",
+        productosActivos.length
+    );
+
+    console.log(
+        "Productos preparados para mostrar:",
+        productosBackend.length
+    );
+}
+
+
 // ==============================
 // PRUEBA DE CONEXIÓN CON FASTAPI
 // ==============================
@@ -659,6 +685,7 @@ async function probarConexionBackend() {
         }
 
         const productosBackend = await respuesta.json();
+        mostrarProductosBackend(productosBackend);
 
         console.log(
             "Productos recibidos desde MongoDB:",
