@@ -5,7 +5,7 @@
 const buscador = document.getElementById("buscador");
 let productos = document.querySelectorAll(".producto");
 const filtros = document.querySelectorAll(".filtro");
-const botonesCarrito = document.querySelectorAll(".agregar-carrito");
+let botonesCarrito = document.querySelectorAll(".agregar-carrito");
 const contadorCarrito = document.getElementById("contador-carrito");
 const sinResultados = document.getElementById("sin-resultados");
 
@@ -125,7 +125,8 @@ filtros.forEach(function (boton) {
 // CARRITO DESDE LAS TARJETAS
 // ==============================
 
-botonesCarrito.forEach(function (boton) {
+function conectarBotonesCarrito() {
+    botonesCarrito.forEach(function (boton) {
     boton.addEventListener("click", function () {
 
         cantidadCarrito++;
@@ -155,7 +156,9 @@ botonesCarrito.forEach(function (boton) {
 
     });
 
-});
+    });
+}
+conectarBotonesCarrito();
 
 
 // ==============================
@@ -268,6 +271,7 @@ function mostrarImagen(indice) {
 // ABRIR PRODUCTO
 // ==============================
 
+function conectarModalProductos() {
 productos.forEach(function (producto) {
 
     const imagenProducto =
@@ -380,6 +384,8 @@ productos.forEach(function (producto) {
     );
 
 });
+}
+conectarModalProductos();
 
 
 // ==============================
@@ -655,6 +661,49 @@ function mostrarProductosBackend(productosBackend) {
     const productosActivos = productosBackend.filter(
         producto => producto.activo === true
     );
+
+    // Crear las tarjetas con los datos reales de la API.
+    // No reemplazar el HTML hasta que la respuesta esté disponible.
+    const fragmento = document.createDocumentFragment();
+    productosActivos.forEach(function (dato) {
+        const tarjeta = document.createElement("article");
+        tarjeta.className = "producto";
+        tarjeta.dataset.categoria = dato.categoria.toLowerCase();
+        const rutaImagen = dato.imagen || "images/polera.png";
+        tarjeta.dataset.imagen = rutaImagen.split("/").pop().replace(/\\.[^.]+$/, "");
+
+        const imagenCaja = document.createElement("div");
+        imagenCaja.className = "imagen-producto";
+        const imagen = document.createElement("img");
+        imagen.src = rutaImagen;
+        imagen.alt = dato.nombre;
+        imagenCaja.appendChild(imagen);
+
+        const informacion = document.createElement("div");
+        informacion.className = "info-producto";
+        const nombre = document.createElement("h3");
+        nombre.textContent = dato.nombre;
+        const categoria = document.createElement("p");
+        categoria.className = "categoria-producto";
+        categoria.textContent = dato.categoria;
+        const precio = document.createElement("p");
+        precio.className = "precio";
+        precio.textContent = "$" + Number(dato.precio).toLocaleString("es-CL");
+        const boton = document.createElement("button");
+        boton.className = "agregar-carrito";
+        boton.dataset.producto = dato.nombre;
+        boton.textContent = "Agregar al carrito";
+        informacion.append(nombre, categoria, precio, boton);
+        tarjeta.append(imagenCaja, informacion);
+        fragmento.appendChild(tarjeta);
+    });
+
+    contenedor.replaceChildren(fragmento);
+    productos = document.querySelectorAll(".producto");
+    botonesCarrito = document.querySelectorAll(".agregar-carrito");
+    conectarBotonesCarrito();
+    conectarModalProductos();
+    actualizarProductos();
 
     console.log(
         "Productos activos disponibles:",
