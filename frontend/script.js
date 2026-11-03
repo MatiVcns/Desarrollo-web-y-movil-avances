@@ -670,7 +670,7 @@ function mostrarProductosBackend(productosBackend) {
         tarjeta.className = "producto";
         tarjeta.dataset.categoria = dato.categoria.toLowerCase();
         const rutaImagen = dato.imagen || "images/polera.png";
-        tarjeta.dataset.imagen = rutaImagen.split("/").pop().replace(/\\.[^.]+$/, "");
+        tarjeta.dataset.imagen = rutaImagen.split("/").pop().replace(/\.[^.]+$/, "");
 
         const imagenCaja = document.createElement("div");
         imagenCaja.className = "imagen-producto";
