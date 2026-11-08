@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from bson import ObjectId
 from contextlib import asynccontextmanager
+from clientes import router as clientes_router, configurar_clientes, crear_indice_clientes
 
 
 # Conexion con MongoDB
@@ -25,6 +26,8 @@ async def lifespan(app: FastAPI):
     client = AsyncIOMotorClient(MONGODB_URL)
     DB = client[DB_NAME]
     coll = DB[COLL_NAME]
+    configurar_clientes(DB)
+    await crear_indice_clientes()
 
     yield
 
@@ -51,6 +54,8 @@ app.add_middleware(
     allow_headers=["Content-Type"]
 )
 
+
+app.include_router(clientes_router)
 
 # Modelo de un producto de la tienda
 class Producto(BaseModel):
