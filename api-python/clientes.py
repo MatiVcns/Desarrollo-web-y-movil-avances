@@ -2,14 +2,20 @@
 import hashlib
 import hmac
 import os
-import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+import jwt
+from jwt import InvalidTokenError
+from fastapi import Depends
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from fastapi import APIRouter, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, EmailStr, Field
 from pymongo.errors import DuplicateKeyError
 
 router = APIRouter(prefix="/clientes", tags=["clientes"])
+security = HTTPBearer(auto_error=False)
+JWT_ALGORITHM = "HS256"
+JWT_DURATION_MINUTES = 60
 _db: AsyncIOMotorDatabase | None = None
 
 
@@ -68,3 +74,63 @@ async def registrar_cliente(datos: RegistroCliente):
     except DuplicateKeyError:
         raise HTTPException(status_code=409, detail="Correo ya registrado")
     return ClientePublico(id=str(resultado.inserted_id), nombre=documento["nombre"], email=email, rol="cliente")
+
+
+class LoginCliente(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class TokenRespuesta(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+    expires_in: int = 3600
+
+
+def obtener_secreto_jwt() -> str:
+    secreto = os.getenv("JWT_SECRET", "")
+    if len(secreto) < 32:
+        raise HTTPException(status_code=503, detail="JWT_SECRET no configurado: se requieren al menos 32 caracteres")
+    return secreto
+
+
+@router.post("/login", response_model=TokenRespuesta)
+async def login_cliente(datos: LoginCliente):
+    correo = str(datos.email).strip().lower()
+    cliente = await _db["clientes"].find_one({"email": correo})
+    if not cliente or not verificar_password(datos.password, cliente.get("password_hash", "")):
+        raise HTTPException(status_code=401, detail="Credenciales incorrectas", headers={"WWW-Authenticate": "Bearer"})
+    secreto = obtener_secreto_jwt()
+    ahora = datetime.now(timezone.utc)
+    payload = {
+        "sub": str(cliente["_id"]),
+        "role": cliente.get("rol", "cliente"),
+        "iat": ahora,
+        "exp": ahora + timedelta(minutes=JWT_DURATION_MINUTES),
+    }
+    token = jwt.encode(payload, secreto, algorithm=JWT_ALGORITHM)
+    return TokenRespuesta(access_token=token)
+
+
+async def cliente_autenticado(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+):
+    if credentials is None:
+        raise HTTPException(status_code=401, detail="Token requerido", headers={"WWW-Authenticate": "Bearer"})
+    try:
+        payload = jwt.decode(credentials.credentials, obtener_secreto_jwt(), algorithms=[JWT_ALGORITHM], options={"require": ["sub", "exp", "iat"]})
+        usuario_id = payload["sub"]
+        from bson import ObjectId
+        if not ObjectId.is_valid(usuario_id):
+            raise ValueError("ID invalido")
+        cliente = await _db["clientes"].find_one({"_id": ObjectId(usuario_id)})
+        if cliente is None:
+            raise ValueError("Usuario no existe")
+        return cliente
+    except (InvalidTokenError, ValueError, KeyError):
+        raise HTTPException(status_code=401, detail="Token invalido o expirado", headers={"WWW-Authenticate": "Bearer"})
+
+
+@router.get("/yo", response_model=ClientePublico)
+async def obtener_mi_perfil(cliente=Depends(cliente_autenticado)):
+    return ClientePublico(id=str(cliente["_id"]), nombre=cliente["nombre"], email=cliente["email"], rol=cliente.get("rol", "cliente"))
