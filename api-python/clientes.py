@@ -94,12 +94,8 @@ def obtener_secreto_jwt() -> str:
     return secreto
 
 
-@router.post("/login", response_model=TokenRespuesta)
-async def login_cliente(datos: LoginCliente):
-    correo = str(datos.email).strip().lower()
-    cliente = await _db["clientes"].find_one({"email": correo})
-    if not cliente or not verificar_password(datos.password, cliente.get("password_hash", "")):
-        raise HTTPException(status_code=401, detail="Credenciales incorrectas", headers={"WWW-Authenticate": "Bearer"})
+def emitir_token(cliente: dict) -> TokenRespuesta:
+    """Emite el mismo JWT para los endpoints legado y /auth/login."""
     secreto = obtener_secreto_jwt()
     ahora = datetime.now(timezone.utc)
     payload = {
@@ -108,8 +104,16 @@ async def login_cliente(datos: LoginCliente):
         "iat": ahora,
         "exp": ahora + timedelta(minutes=JWT_DURATION_MINUTES),
     }
-    token = jwt.encode(payload, secreto, algorithm=JWT_ALGORITHM)
-    return TokenRespuesta(access_token=token)
+    return TokenRespuesta(access_token=jwt.encode(payload, secreto, algorithm=JWT_ALGORITHM))
+
+
+@router.post("/login", response_model=TokenRespuesta)
+async def login_cliente(datos: LoginCliente):
+    correo = str(datos.email).strip().lower()
+    cliente = await _db["clientes"].find_one({"email": correo})
+    if not cliente or not verificar_password(datos.password, cliente.get("password_hash", "")):
+        raise HTTPException(status_code=401, detail="Credenciales incorrectas", headers={"WWW-Authenticate": "Bearer"})
+    return emitir_token(cliente)
 
 
 async def cliente_autenticado(

@@ -1,42 +1,64 @@
-# Weird Style - GraphQL
+# WEIRD STYLE — tienda de ropa
 
-Avance semanal del proyecto Weird Style.
+Frontend responsivo HTML/CSS/JavaScript, backend FastAPI + MongoDB y gateway Node.js con GraphQL.
 
-En este avance se implementó una API GraphQL para el manejo de los productos de la tienda.
+## Inicio recomendado (Docker)
 
-## Funcionalidades
+1. Duplica `.env.example` como `.env` y reemplaza los valores de JWT y webhook con claves aleatorias locales (mínimo 32 caracteres para JWT).
+2. Ejecuta `docker compose up --build`.
+3. En otra terminal ejecuta `docker compose exec api python seed_demo.py` y crea un administrador local con `docker compose exec -e ADMIN_EMAIL=admin@weirdstyle.local -e ADMIN_PASSWORD='Cambiar-esta-clave-123' api python seed_admin.py`.
+4. Abre `frontend/index.html` con Live Server en `http://127.0.0.1:5500`.
+5. API Gateway público REST/GraphQL: `http://127.0.0.1:4000`. El servidor GraphQL privado y FastAPI solo son accesibles desde la red Docker; Mongo no publica puerto al equipo host.
 
-- Agregar productos
-- Listar productos
-- Buscar productos por ID
-- Actualizar productos
-- Eliminar productos
+## Inicio manual y diagnóstico de FastAPI
 
-Cada producto contiene:
-- Nombre
-- Categoría
-- Precio
-- Stock
+Desde `api-python`, instala dependencias con `python -m pip install -r requirements.txt` y ejecuta:
 
-## Tecnologías utilizadas
+```bash
+uvicorn main:app --host 127.0.0.1 --port 8000 --reload
+```
 
-- Node.js
-- Express
-- GraphQL
-- Apollo Server
-- MongoDB
-- Mongoose
+Comprueba `http://127.0.0.1:8000/health` y luego `/docs`. Si VS Code se ejecuta en WSL, SSH, contenedor o Codespaces, inicia Uvicorn con `--host 0.0.0.0`, reenvía el puerto **8000** en el panel **Ports** y usa la dirección que muestra VS Code. `127.0.0.1` de Chrome es la computadora local y puede no ser el mismo entorno que la terminal remota.
 
-## Ejecución
+Para ejecución manual, deja MongoDB y FastAPI ejecutándose. En dos terminales en la raíz, instala Node con `npm ci`, inicia `npm run start:graphql` (puerto privado 4001) y `npm start` (API Gateway público, puerto 4000). El frontend usa el gateway. Si FastAPI y Node corren en máquinas distintas, configura `API_INTERNAL_URL` con una dirección alcanzable desde Node.
 
-Instalar las dependencias:
+## Variables
 
-npm install
+Consulta `.env.example`: `MONGODB_URL`, `MONGODB_DB`, `JWT_SECRET`, `PAYMENT_WEBHOOK_SECRET`, `CORS_ORIGINS` y `API_INTERNAL_URL`. Nunca subas `.env` ni uses los valores de ejemplo en producción.
 
-Iniciar el servidor:
+Crea el admin local tras iniciar Mongo:
 
-npm run dev
+```bash
+cd api-python
+ADMIN_EMAIL=admin@weirdstyle.local ADMIN_PASSWORD='Cambiar-esta-clave-123' python seed_admin.py
+```
 
-La API GraphQL se ejecuta en:
+En PowerShell:
 
-http://localhost:4000/graphql
+```powershell
+Set-Location api-python
+$env:ADMIN_EMAIL = 'admin@weirdstyle.local'
+$env:ADMIN_PASSWORD = 'Cambiar-esta-clave-123'
+python seed_admin.py
+Remove-Item Env:ADMIN_EMAIL, Env:ADMIN_PASSWORD
+```
+
+## Pruebas
+
+```bash
+python -m pip install -r api-python/requirements-dev.txt
+python -m pytest api-python/tests -q
+npm test
+node --check server.js
+node --check frontend/script.js
+```
+
+La suite de API usa Mongo simulado y prueba autenticación, permisos, privacidad de pedido, reserva de stock e idempotencia del pago. Para pruebas de persistencia y despliegue real ejecuta Compose con Docker instalado.
+
+## Funcionalidad
+
+- Catálogo público, filtros y CRUD protegido por rol admin.
+- Registro/login, perfil JWT, carrito, creación de pedidos y consulta de historial GraphQL.
+- Precio autoritativo del servidor, reserva y reposición de stock.
+- Intenciones de pago sandbox; confirmación únicamente por webhook con secreto servidor-servidor. No se guardan tarjetas.
+- Guía de módulos, trazabilidad, arquitectura, seguridad, ADR y brechas: [`docs/solemne2-arquitectura.md`](docs/solemne2-arquitectura.md).

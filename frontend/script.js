@@ -16,6 +16,37 @@ const sinResultados = document.getElementById("sin-resultados");
 
 let categoriaSeleccionada = "todos";
 let cantidadCarrito = 0;
+let clienteToken = null; // Se mantiene en memoria para no persistir JWT en localStorage.
+const carritoItems = new Map();
+let productoActualId = null;
+const gatewayBase = window.WEIRD_STYLE_GATEWAY || "http://127.0.0.1:4000";
+
+async function solicitarApi(path, options = {}) {
+    const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
+    try {
+        return await fetch(`${gatewayBase}/api${path}`, { ...options, headers });
+    } catch (_) {
+        return fetch(`http://127.0.0.1:8000${path}`, { ...options, headers });
+    }
+}
+
+function actualizarCarrito() {
+    cantidadCarrito = [...carritoItems.values()].reduce((total, linea) => total + linea.cantidad, 0);
+    if (contadorCarrito) contadorCarrito.textContent = cantidadCarrito;
+    const resumen = document.getElementById("resumen-carrito");
+    if (resumen) resumen.textContent = cantidadCarrito;
+}
+
+function agregarLineaCarrito(productoId, nombre, cantidad = 1, talla = "M") {
+    if (!productoId) {
+        alert("El catálogo todavía no se ha conectado al backend. Intenta nuevamente en unos segundos.");
+        return;
+    }
+    const key = `${productoId}:${talla}`;
+    const existente = carritoItems.get(key);
+    carritoItems.set(key, { producto_id: productoId, nombre, cantidad: (existente?.cantidad || 0) + cantidad, talla });
+    actualizarCarrito();
+}
 
 
 // ==============================
@@ -129,10 +160,8 @@ function conectarBotonesCarrito() {
     botonesCarrito.forEach(function (boton) {
     boton.addEventListener("click", function () {
 
-        cantidadCarrito++;
-
-        contadorCarrito.textContent =
-            cantidadCarrito;
+        const tarjeta = boton.closest(".producto");
+        agregarLineaCarrito(boton.dataset.productoId, boton.dataset.producto || tarjeta?.querySelector("h3")?.textContent || "Producto");
 
 
         // Cambio temporal del botón
@@ -289,6 +318,7 @@ productos.forEach(function (producto) {
 
         const nombre =
             producto.querySelector("h3").textContent;
+        productoActualId = producto.dataset.productoId || null;
 
         const precio =
             producto.querySelector(".precio").textContent;
@@ -623,11 +653,7 @@ modalAgregarCarrito.addEventListener("click", function () {
     }
 
 
-    cantidadCarrito += cantidadModal;
-
-
-    contadorCarrito.textContent =
-        cantidadCarrito;
+    agregarLineaCarrito(productoActualId, modalNombre.textContent, cantidadModal, tallaSeleccionada);
 
 
     modalAgregarCarrito.textContent =
@@ -668,6 +694,7 @@ function mostrarProductosBackend(productosBackend) {
     productosActivos.forEach(function (dato) {
         const tarjeta = document.createElement("article");
         tarjeta.className = "producto";
+        tarjeta.dataset.productoId = dato.id;
         tarjeta.dataset.categoria = dato.categoria.toLowerCase();
         const rutaImagen = dato.imagen || "images/polera.png";
         tarjeta.dataset.imagen = rutaImagen.split("/").pop().replace(/\.[^.]+$/, "");
@@ -692,6 +719,7 @@ function mostrarProductosBackend(productosBackend) {
         const boton = document.createElement("button");
         boton.className = "agregar-carrito";
         boton.dataset.producto = dato.nombre;
+        boton.dataset.productoId = dato.id;
         boton.textContent = "Agregar al carrito";
         informacion.append(nombre, categoria, precio, boton);
         tarjeta.append(imagenCaja, informacion);
@@ -723,17 +751,24 @@ function mostrarProductosBackend(productosBackend) {
 
 async function probarConexionBackend() {
     try {
-        const respuesta = await fetch(
-            "http://127.0.0.1:8000/productos"
-        );
-
-        if (!respuesta.ok) {
-            throw new Error(
-                `Error HTTP: ${respuesta.status}`
-            );
+        let productosBackend;
+        try {
+            const respuestaGraphQL = await fetch(`${gatewayBase}/graphql`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    query: "query Catalogo { getProductos(limit: 100) { id nombre categoria precio talla color stock tags imagen activo } }"
+                })
+            });
+            const resultadoGraphQL = await respuestaGraphQL.json();
+            if (!respuestaGraphQL.ok || resultadoGraphQL.errors) throw new Error("GraphQL no disponible");
+            productosBackend = resultadoGraphQL.data.getProductos;
+        } catch (errorGraphQL) {
+            // Compatibilidad con el modo de desarrollo en que solo se inicia FastAPI.
+            const respuesta = await fetch(`${gateway}/api/productos`).catch(() => fetch("http://127.0.0.1:8000/productos"));
+            if (!respuesta.ok) throw new Error(`Error HTTP: ${respuesta.status}`);
+            productosBackend = await respuesta.json();
         }
-
-        const productosBackend = await respuesta.json();
         mostrarProductosBackend(productosBackend);
 
         console.log(
@@ -749,4 +784,94 @@ async function probarConexionBackend() {
     }
 }
 
+// Registro, login, compra e historial mediante los contratos del backend.
+const campoCuentaNombre = document.getElementById("cuenta-nombre");
+const campoCuentaEmail = document.getElementById("cuenta-email");
+const campoCuentaPassword = document.getElementById("cuenta-password");
+const estadoCuenta = document.getElementById("estado-cuenta");
+const botonLogout = document.getElementById("boton-logout");
+document.getElementById("form-cuenta")?.addEventListener("submit", evento => evento.preventDefault());
+
+document.getElementById("boton-registro")?.addEventListener("click", async () => {
+    if (!campoCuentaNombre.value.trim()) { estadoCuenta.textContent = "Ingresa tu nombre para crear una cuenta."; return; }
+    try {
+        const response = await solicitarApi("/auth/register", { method: "POST", body: JSON.stringify({ nombre: campoCuentaNombre.value, email: campoCuentaEmail.value, password: campoCuentaPassword.value }) });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || "No se pudo crear la cuenta");
+        estadoCuenta.textContent = `Cuenta creada para ${data.email}. Ahora inicia sesión.`;
+    } catch (error) { estadoCuenta.textContent = error.message; }
+});
+
+document.getElementById("boton-login")?.addEventListener("click", async () => {
+    try {
+        const response = await solicitarApi("/auth/login", { method: "POST", body: JSON.stringify({ email: campoCuentaEmail.value, password: campoCuentaPassword.value }) });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.detail || "No se pudo iniciar sesión");
+        clienteToken = data.access_token;
+        const perfilResponse = await solicitarApi("/auth/me", { headers: { Authorization: `Bearer ${clienteToken}` } });
+        const perfil = await perfilResponse.json();
+        if (!perfilResponse.ok) throw new Error(perfil.detail || "No se pudo cargar el perfil");
+        estadoCuenta.textContent = `Sesión iniciada: ${perfil.nombre} (${perfil.rol}).`;
+        botonLogout.hidden = false;
+    } catch (error) { estadoCuenta.textContent = error.message; }
+});
+
+botonLogout?.addEventListener("click", () => {
+    clienteToken = null;
+    botonLogout.hidden = true;
+    estadoCuenta.textContent = "Sesión cerrada.";
+});
+
+document.getElementById("boton-finalizar-pedido")?.addEventListener("click", async () => {
+    const estadoPedido = document.getElementById("estado-pedido");
+    if (!clienteToken) { estadoPedido.textContent = "Inicia sesión para crear el pedido."; return; }
+    if (!carritoItems.size) { estadoPedido.textContent = "Agrega al menos un producto al carrito."; return; }
+    const direccion = document.getElementById("direccion-entrega").value.trim();
+    if (direccion.length < 5) { estadoPedido.textContent = "Ingresa una dirección de entrega válida."; return; }
+    try {
+        const pedidoResponse = await solicitarApi("/pedidos", {
+            method: "POST", headers: { Authorization: `Bearer ${clienteToken}` },
+            body: JSON.stringify({ items: [...carritoItems.values()].map(({ producto_id, cantidad, talla }) => ({ producto_id, cantidad, talla })), direccion_entrega: direccion, idempotency_key: `ws-${crypto.randomUUID()}` })
+        });
+        const pedido = await pedidoResponse.json();
+        if (!pedidoResponse.ok) throw new Error(pedido.detail || "No se pudo crear el pedido");
+        const pagoResponse = await solicitarApi(`/pagos/pedidos/${pedido.id}`, { method: "POST", headers: { Authorization: `Bearer ${clienteToken}`, "Idempotency-Key": `pay-${crypto.randomUUID()}` } });
+        const pago = await pagoResponse.json();
+        if (!pagoResponse.ok) throw new Error(pago.detail || "Pedido creado; no se pudo iniciar el pago.");
+        carritoItems.clear();
+        actualizarCarrito();
+        estadoPedido.textContent = `Pedido ${pedido.id} creado por $${Number(pedido.total).toLocaleString("es-CL")}. Pago sandbox ${pago.estado}; pendiente de confirmación del proveedor.`;
+    } catch (error) { estadoPedido.textContent = error.message; }
+});
+
+document.getElementById("boton-historial")?.addEventListener("click", async () => {
+    const lista = document.getElementById("lista-pedidos");
+    if (!clienteToken) { document.getElementById("estado-pedido").textContent = "Inicia sesión para consultar tu historial."; return; }
+    try {
+        const response = await fetch(`${gatewayBase}/graphql`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${clienteToken}` }, body: JSON.stringify({ query: "query { misPedidos { id estado total creado_en } }" }) });
+        const result = await response.json();
+        if (!response.ok || result.errors) throw new Error(result.errors?.[0]?.message || "No se pudo consultar el historial");
+        lista.replaceChildren(...result.data.misPedidos.map(pedido => {
+            const li = document.createElement("li");
+            const detalle = document.createElement("span");
+            detalle.textContent = `${pedido.id} — ${pedido.estado} — $${Number(pedido.total).toLocaleString("es-CL")} `;
+            const botonResumen = document.createElement("button");
+            botonResumen.type = "button";
+            botonResumen.textContent = "Resumen agregado";
+            botonResumen.addEventListener("click", async () => {
+                try {
+                    const respuesta = await fetch(`${gatewayBase}/graphql`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${clienteToken}` }, body: JSON.stringify({ query: "query($id: ID!) { resumenPedido(id: $id) { pedido_id estado total lineas { nombre cantidad precio_actual subtotal_pagado disponible } } }", variables: { id: pedido.id } }) });
+                    const datos = await respuesta.json();
+                    if (datos.errors) throw new Error(datos.errors[0].message);
+                    const resumenPedido = datos.data.resumenPedido;
+                    detalle.textContent = `${resumenPedido.pedido_id} — ${resumenPedido.estado} — ${resumenPedido.lineas.map(linea => `${linea.nombre} ×${linea.cantidad} (${linea.disponible ? "disponible" : "sin stock"})`).join(", ")}`;
+                } catch (error) { detalle.textContent = error.message; }
+            });
+            li.append(detalle, botonResumen);
+            return li;
+        }));
+    } catch (error) { document.getElementById("estado-pedido").textContent = error.message; }
+});
+
+actualizarCarrito();
 probarConexionBackend();

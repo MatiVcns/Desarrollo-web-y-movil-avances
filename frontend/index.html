@@ -25,6 +25,7 @@
         <nav class="menu">
             <a href="#inicio">Inicio</a>
             <a href="#productos">Productos</a>
+            <a href="#cuenta">Mi cuenta</a>
             <a href="#nosotros">Nosotros</a>
         </nav>
 
@@ -91,6 +92,39 @@
 
         </section>
 
+
+        <section class="cuenta-panel" id="cuenta" aria-labelledby="titulo-cuenta">
+            <div class="cuenta-card">
+                <p class="hero-subtitulo">MI CUENTA</p>
+                <h2 id="titulo-cuenta">Identifícate para comprar</h2>
+                <form id="form-cuenta" class="cuenta-form">
+                    <label for="cuenta-nombre">Nombre (solo para registrarte)</label>
+                    <input id="cuenta-nombre" autocomplete="name" minlength="2" maxlength="100" placeholder="Nombre completo">
+                    <label for="cuenta-email">Correo electrónico</label>
+                    <input id="cuenta-email" type="email" autocomplete="email" required>
+                    <label for="cuenta-password">Contraseña (mínimo 10 caracteres)</label>
+                    <input id="cuenta-password" type="password" autocomplete="current-password" minlength="10" required>
+                    <div class="cuenta-actions">
+                        <button type="button" id="boton-registro">Crear cuenta</button>
+                        <button type="button" id="boton-login">Iniciar sesión</button>
+                        <button type="button" id="boton-logout" hidden>Cerrar sesión</button>
+                    </div>
+                </form>
+                <p id="estado-cuenta" role="status" aria-live="polite">Puedes explorar el catálogo sin iniciar sesión.</p>
+            </div>
+            <div class="cuenta-card">
+                <p class="hero-subtitulo">PEDIDO</p>
+                <h2>Finalizar compra</h2>
+                <label for="direccion-entrega">Dirección de entrega</label>
+                <input id="direccion-entrega" maxlength="250" placeholder="Calle y número, comuna">
+                <p>Productos en el carrito: <strong id="resumen-carrito">0</strong></p>
+                <button type="button" id="boton-finalizar-pedido">Crear pedido</button>
+                <p id="estado-pedido" role="status" aria-live="polite"></p>
+                <h3>Mis pedidos</h3>
+                <button type="button" id="boton-historial">Consultar historial</button>
+                <ul id="lista-pedidos"></ul>
+            </div>
+        </section>
 
         <!-- =========================
              PRODUCTOS
