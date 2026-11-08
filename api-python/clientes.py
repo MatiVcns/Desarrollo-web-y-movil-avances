@@ -39,7 +39,7 @@ def hash_password(password: str) -> str:
     salt = os.urandom(16)
     iterations = 600_000
     derived = hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, iterations)
-    return f"pbkdf2_sha256$${iterations}$${salt.hex()}$${derived.hex()}".replace("$\\$", "$")
+    return f"pbkdf2_sha256${iterations}${salt.hex()}${derived.hex()}"
 
 
 def verificar_password(password: str, stored: str) -> bool:
