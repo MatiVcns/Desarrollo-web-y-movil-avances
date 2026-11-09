@@ -152,7 +152,7 @@ Verificación: los servicios validan firma, expiración, sujeto y rol del JWT. E
 
 ## 5. API Gateway y políticas
 
-El gateway Node (`server.js`, puerto 4000) aplica allowlist y enruta `/api/auth`, `/api/clientes` y `/api/admin` a clients; `/api/productos` a inventory; `/api/pedidos` a orders; y `/api/pagos` a payments. Dirige `/graphql` al GraphQL Gateway privado (`graphql.js`, puerto 4001), que agrega inventory y orders. Tiene límite de payload 50 KiB, límite simple por IP configurable (`RATE_LIMIT_PER_MINUTE`, por defecto 120), métodos permitidos, CORS por origen y timeout upstream. Los servicios validan JWT, rol, propietario y reglas del negocio. Las llamadas entre servicios usan endpoints internos autenticados con secretos distintos. GraphQL limita profundidad a 8 y oculta introspección en `NODE_ENV=production`. Compose no publica puertos internos.
+El gateway Node (`server.js`, puerto 4000) aplica allowlist y enruta `/api/auth`, `/api/clientes` y `/api/admin` a clients; `/api/productos` a inventory; `/api/pedidos` a orders; y `/api/pagos` a payments. Dirige `/graphql` al GraphQL Gateway privado (`graphql.js`, puerto 4001), que agrega inventory y orders. Tiene límite de payload 50 KiB, límite simple por IP configurable (`RATE_LIMIT_PER_MINUTE`, por defecto 120), métodos permitidos, CORS por origen y timeout upstream. Los servicios validan JWT, rol, propietario y reglas del negocio. Las llamadas entre servicios usan endpoints internos autenticados con secretos distintos. GraphQL limita profundidad a 8 y costo estático a 25.000 unidades por operación, rechaza lotes HTTP y oculta introspección en `NODE_ENV=production`. Compose no publica puertos internos.
 
 ### UML de gateway
 
@@ -242,6 +242,8 @@ Controles incluidos: CORS allowlist, cabeceras defensivas, validación Pydantic,
 ## 8. GraphQL
 
 `getProductos` resuelve datos desde inventory; `resumenPedido(id)` valida JWT/propiedad consultando orders y agrega disponibilidad/precio vigente desde inventory. El snapshot del pedido sigue siendo la fuente del total cobrado. Campo `precio_actual` es informativo y no recalcula el pedido. El gateway no consulta colecciones Mongo directamente. Duplicidad/no disponibilidad de un producto se representa con `disponible=false` y precio actual nulo. Las mutaciones de catálogo pasan por REST y requieren rol admin. El front carga `getProductos` con REST como respaldo en caso de gateway apagado.
+
+El costo reserva 1.000 unidades por campo raíz y pondera las selecciones según los máximos de las listas. Se contabilizan alias y fragmentos antes de invocar resolvers. Las pruebas Node comprueban una lectura normal, el rechazo por costo y profundidad, y el bloqueo de lotes HTTP.
 
 ## 9. ADR: analítica y gRPC
 

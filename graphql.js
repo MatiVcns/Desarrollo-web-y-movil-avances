@@ -1,6 +1,6 @@
 const express = require('express');
 const { ApolloServer, gql, ApolloError } = require('apollo-server-express');
-const { GraphQLError } = require('graphql');
+const { GraphQLError, Kind } = require('graphql');
 
 const app = express();
 app.disable('x-powered-by');
@@ -87,14 +87,82 @@ const resolvers = {
   }
 };
 
+const MAX_DEPTH = 8;
+const MAX_COST = 25000;
+const ROOT_FIELD_COST = 1000;
+
+function listSize(field) {
+  switch (field.name.value) {
+    case 'getProductos': {
+      const limit = field.arguments?.find(argument => argument.name.value === 'limit')?.value;
+      if (!limit) return 50;
+      return limit.kind === Kind.INT ? Math.min(100, Math.max(1, Number(limit.value))) : 100;
+    }
+    case 'misPedidos': return 100;
+    case 'items':
+    case 'lineas': return 30;
+    case 'tags': return 20;
+    default: return 1;
+  }
+}
+
+// Estima el trabajo antes de invocar resolvers. El recorrido iterativo también
+// acota expansiones de fragmentos y cobra cada alias como un campo separado.
+function operationLimits(context) {
+  return {
+    OperationDefinition(operation) {
+      const fragments = new Set();
+      const stack = [{ selections: operation.selectionSet.selections, next: 0, depth: 0, weight: 1 }];
+      let cost = 0;
+      while (stack.length) {
+        const frame = stack[stack.length - 1];
+        if (frame.next === frame.selections.length) {
+          stack.pop();
+          if (frame.fragment) fragments.delete(frame.fragment);
+          continue;
+        }
+
+        const selection = frame.selections[frame.next++];
+        let depth = frame.depth;
+        let weight = frame.weight;
+        let selectionSet = selection.selectionSet;
+        let fragment;
+        if (selection.kind === Kind.FIELD) {
+          const size = listSize(selection);
+          cost += (depth === 0 ? ROOT_FIELD_COST : 0) + weight * (selectionSet ? 1 : size);
+          depth++;
+          weight *= size;
+          if (depth > MAX_DEPTH) {
+            context.reportError(new GraphQLError(`Profundidad GraphQL máxima: ${MAX_DEPTH}`, { nodes: selection }));
+            return false;
+          }
+        } else {
+          cost++;
+          if (selection.kind === Kind.FRAGMENT_SPREAD) {
+            fragment = selection.name.value;
+            // Las reglas estándar rechazan fragmentos inexistentes o cíclicos.
+            if (!fragments.has(fragment)) selectionSet = context.getFragment(fragment)?.selectionSet;
+          }
+        }
+
+        if (cost > MAX_COST) {
+          context.reportError(new GraphQLError(`Costo GraphQL máximo: ${MAX_COST} unidades`, { nodes: selection }));
+          return false;
+        }
+        if (selectionSet) {
+          if (fragment) fragments.add(fragment);
+          stack.push({ selections: selectionSet.selections, next: 0, depth, weight, fragment });
+        }
+      }
+    }
+  };
+}
+
 async function start() {
   const server = new ApolloServer({
     typeDefs, resolvers,
     introspection: !isProduction,
-    validationRules: [context => {
-      let depth = 0;
-      return { Field: { enter() { depth += 1; if (depth > 8) context.reportError(new GraphQLError('Profundidad GraphQL máxima: 8')); }, leave() { depth -= 1; } } };
-    }],
+    validationRules: [operationLimits],
     context: ({ req }) => ({ authorization: req.headers.authorization }),
     formatError: error => ({
       message: error.message,
@@ -102,6 +170,13 @@ async function start() {
     })
   });
   await server.start();
+  app.post('/graphql', (req, res, next) => {
+    if (Array.isArray(req.body)) {
+      return res.status(400).json({ errors: [{ message: 'Envía una sola operación GraphQL por solicitud',
+        extensions: { code: 'BAD_REQUEST' } }] });
+    }
+    next();
+  });
   server.applyMiddleware({ app, path: '/graphql', cors: false });
   app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'graphql-gateway' }));
   const port = Number(process.env.PORT || 4001);
