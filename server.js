@@ -5,6 +5,12 @@ app.disable('x-powered-by');
 app.use(express.json({ limit: '50kb' }));
 const API_URL = (process.env.API_INTERNAL_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
 const GRAPHQL_URL = process.env.GRAPHQL_INTERNAL_URL || 'http://127.0.0.1:4001/graphql';
+const serviceUrls = {
+  clients: (process.env.CLIENTS_URL || API_URL).replace(/\/$/, ''),
+  inventory: (process.env.INVENTORY_URL || API_URL).replace(/\/$/, ''),
+  orders: (process.env.ORDERS_URL || API_URL).replace(/\/$/, ''),
+  payments: (process.env.PAYMENTS_URL || API_URL).replace(/\/$/, '')
+};
 const allowedOrigins = (process.env.CORS_ORIGINS || 'http://127.0.0.1:5500,http://localhost:5500').split(',').map(x => x.trim());
 const requestCounts = new Map();
 
@@ -28,11 +34,16 @@ app.use((req, res, next) => {
 });
 
 app.all(/^\/api\/(.*)$/, async (req, res) => {
-  const allowed = /^(auth|clientes|productos|pedidos|pagos|admin)(\/|$)/.test(req.params[0]);
-  if (!allowed || !['GET', 'POST', 'PUT', 'DELETE'].includes(req.method)) return res.status(404).json({ detail: 'Ruta no disponible' });
+  const route = req.params[0];
+  const segment = route.split('/')[0];
+  const targetName = ['auth', 'clientes', 'admin'].includes(segment) ? 'clients' :
+    ['productos'].includes(segment) ? 'inventory' :
+    ['pedidos'].includes(segment) ? 'orders' :
+    ['pagos'].includes(segment) ? 'payments' : null;
+  if (!targetName || !['GET', 'POST', 'PUT', 'DELETE'].includes(req.method)) return res.status(404).json({ detail: 'Ruta no disponible' });
   try {
     const query = req.url.includes('?') ? req.url.slice(req.url.indexOf('?')) : '';
-    const upstream = await fetch(`${API_URL}/${req.params[0]}${query}`, {
+    const upstream = await fetch(`${serviceUrls[targetName]}/${route}${query}`, {
       method: req.method,
       headers: {
         ...(req.headers.authorization ? { Authorization: req.headers.authorization } : {}),

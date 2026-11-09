@@ -11,12 +11,84 @@ services:
       retries: 20
     networks: [backend]
 
-  api:
+  clients:
     build: ./api-python
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
     restart: unless-stopped
-    env_file: .env
     environment:
+      SERVICE_NAME: clients
       MONGODB_URL: mongodb://mongodb:27017
+      MONGODB_DB: bd_weirdstyle_clients
+      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET en .env}
+      MONGO_TIMEOUT_MS: 5000
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks: [backend]
+
+  inventory:
+    build: ./api-python
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+    restart: unless-stopped
+    environment:
+      SERVICE_NAME: inventory
+      MONGODB_URL: mongodb://mongodb:27017
+      MONGODB_DB: bd_weirdstyle_inventory
+      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET en .env}
+      ORDERS_INVENTORY_TOKEN: ${ORDERS_INVENTORY_TOKEN:?Configura ORDERS_INVENTORY_TOKEN en .env}
+      MONGO_TIMEOUT_MS: 5000
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks: [backend]
+
+  orders:
+    build: ./api-python
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+    restart: unless-stopped
+    environment:
+      SERVICE_NAME: orders
+      MONGODB_URL: mongodb://mongodb:27017
+      MONGODB_DB: bd_weirdstyle_orders
+      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET en .env}
+      INVENTORY_URL: http://inventory:8000
+      PAYMENTS_URL: http://payments:8000
+      ORDERS_INVENTORY_TOKEN: ${ORDERS_INVENTORY_TOKEN:?Configura ORDERS_INVENTORY_TOKEN en .env}
+      ORDERS_PAYMENTS_TOKEN: ${ORDERS_PAYMENTS_TOKEN:?Configura ORDERS_PAYMENTS_TOKEN en .env}
+      MONGO_TIMEOUT_MS: 5000
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks: [backend]
+
+  payments:
+    build: ./api-python
+    command: ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+    restart: unless-stopped
+    environment:
+      SERVICE_NAME: payments
+      MONGODB_URL: mongodb://mongodb:27017
+      MONGODB_DB: bd_weirdstyle_payments
+      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET en .env}
+      PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:?Configura PAYMENT_WEBHOOK_SECRET en .env}
+      ORDERS_URL: http://orders:8000
+      PAYMENTS_ORDERS_TOKEN: ${PAYMENTS_ORDERS_TOKEN:?Configura PAYMENTS_ORDERS_TOKEN en .env}
+      MONGO_TIMEOUT_MS: 5000
     depends_on:
       mongodb:
         condition: service_healthy
@@ -33,11 +105,14 @@ services:
       dockerfile: Dockerfile.node
     command: node graphql.js
     environment:
-      API_INTERNAL_URL: http://api:8000
+      INVENTORY_URL: http://inventory:8000
+      ORDERS_URL: http://orders:8000
       PORT: 4001
       NODE_ENV: development
     depends_on:
-      api:
+      inventory:
+        condition: service_healthy
+      orders:
         condition: service_healthy
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
@@ -52,11 +127,22 @@ services:
       dockerfile: Dockerfile.node
     command: node server.js
     environment:
-      API_INTERNAL_URL: http://api:8000
+      CLIENTS_URL: http://clients:8000
+      INVENTORY_URL: http://inventory:8000
+      ORDERS_URL: http://orders:8000
+      PAYMENTS_URL: http://payments:8000
       GRAPHQL_INTERNAL_URL: http://graphql:4001/graphql
       PORT: 4000
-      CORS_ORIGINS: http://127.0.0.1:5500,http://localhost:5500
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://127.0.0.1:5500,http://localhost:5500}
     depends_on:
+      clients:
+        condition: service_healthy
+      inventory:
+        condition: service_healthy
+      orders:
+        condition: service_healthy
+      payments:
+        condition: service_healthy
       graphql:
         condition: service_healthy
     ports:
@@ -66,5 +152,6 @@ services:
 networks:
   backend:
     driver: bridge
+
 volumes:
   weirdstyle-mongo:

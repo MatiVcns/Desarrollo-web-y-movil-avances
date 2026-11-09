@@ -4,11 +4,11 @@ Frontend responsivo HTML/CSS/JavaScript, backend FastAPI + MongoDB y gateway Nod
 
 ## Inicio recomendado (Docker)
 
-1. Duplica `.env.example` como `.env` y reemplaza los valores de JWT y webhook con claves aleatorias locales (mínimo 32 caracteres para JWT).
+1. Duplica `.env.example` como `.env` y genera secretos aleatorios distintos para JWT, webhook y cada vínculo interno entre servicios.
 2. Ejecuta `docker compose up --build`.
-3. En otra terminal ejecuta `docker compose exec api python seed_demo.py` y crea un administrador local con `docker compose exec -e ADMIN_EMAIL=admin@weirdstyle.local -e ADMIN_PASSWORD='Cambiar-esta-clave-123' api python seed_admin.py`.
-4. Abre `frontend/index.html` con Live Server en `http://127.0.0.1:5500`.
-5. API Gateway público REST/GraphQL: `http://127.0.0.1:4000`. El servidor GraphQL privado y FastAPI solo son accesibles desde la red Docker; Mongo no publica puerto al equipo host.
+3. En otra terminal carga el catálogo en inventory: `docker compose exec inventory python seed_demo.py`.
+4. Crea un administrador local en clients: `docker compose exec -e ADMIN_EMAIL=admin@weirdstyle.local -e ADMIN_PASSWORD='Cambiar-esta-clave-123' clients python seed_admin.py`.
+5. API Gateway REST/GraphQL: `http://127.0.0.1:4000`. Clients, inventory, orders, payments, GraphQL y MongoDB están en la red privada; solo el Gateway publica un puerto al equipo host.
 
 ## Inicio manual y diagnóstico de FastAPI
 
@@ -20,11 +20,11 @@ uvicorn main:app --host 127.0.0.1 --port 8000 --reload
 
 Comprueba `http://127.0.0.1:8000/health` y luego `/docs`. Si VS Code se ejecuta en WSL, SSH, contenedor o Codespaces, inicia Uvicorn con `--host 0.0.0.0`, reenvía el puerto **8000** en el panel **Ports** y usa la dirección que muestra VS Code. `127.0.0.1` de Chrome es la computadora local y puede no ser el mismo entorno que la terminal remota.
 
-Para ejecución manual, deja MongoDB y FastAPI ejecutándose. En dos terminales en la raíz, instala Node con `npm ci`, inicia `npm run start:graphql` (puerto privado 4001) y `npm start` (API Gateway público, puerto 4000). El frontend usa el gateway. Si FastAPI y Node corren en máquinas distintas, configura `API_INTERNAL_URL` con una dirección alcanzable desde Node.
+Para ejecución manual, deja MongoDB y FastAPI en modo `SERVICE_NAME=all` ejecutándose. En dos terminales en la raíz instala Node con `npm ci`, inicia `npm run start:graphql` (puerto 4001) y `npm start` (Gateway, puerto 4000). El modo `all` es solo para desarrollo local; Compose ejecuta cada dominio como proceso y base separados. Si Node y FastAPI corren en máquinas distintas, configura las URL de servicios correspondientes.
 
 ## Variables
 
-Consulta `.env.example`: `MONGODB_URL`, `MONGODB_DB`, `JWT_SECRET`, `PAYMENT_WEBHOOK_SECRET`, `CORS_ORIGINS` y `API_INTERNAL_URL`. Nunca subas `.env` ni uses los valores de ejemplo en producción.
+Consulta `.env.example`: `MONGODB_URL`, `MONGODB_DB`, `JWT_SECRET`, `PAYMENT_WEBHOOK_SECRET`, `ORDERS_INVENTORY_TOKEN`, `ORDERS_PAYMENTS_TOKEN`, `PAYMENTS_ORDERS_TOKEN` y `CORS_ORIGINS`. Nunca subas `.env` ni uses los valores de ejemplo.
 
 Crea el admin local tras iniciar Mongo:
 
@@ -53,7 +53,7 @@ node --check server.js
 node --check frontend/script.js
 ```
 
-La suite de API usa Mongo simulado y prueba autenticación, permisos, privacidad de pedido, reserva de stock e idempotencia del pago. Para pruebas de persistencia y despliegue real ejecuta Compose con Docker instalado.
+La suite de API usa Mongo simulado y prueba autenticación, permisos, privacidad de pedido, reserva de stock e idempotencia del pago. Para comprobar la separación entre procesos, persistencia e integraciones internas, ejecuta Compose con Docker instalado.
 
 ## Funcionalidad
 

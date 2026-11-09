@@ -4,9 +4,9 @@
 
 ## Alcance y estado honesto
 
-Esta versión conserva el catálogo y el CRUD de productos, agrega registro/login JWT, rol administrador, pedidos con reserva de inventario, pagos sandbox con webhook verificado, un API Gateway REST/GraphQL y pruebas automatizadas. El despliegue Compose mantiene FastAPI y MongoDB en una red sin puertos publicados; solo el gateway Node queda expuesto. Para facilitar el trabajo de curso, los dominios inventory, clients, orders y payments están separados por contratos y colecciones, pero aún son módulos dentro de una aplicación FastAPI y no procesos de microservicios independientes. El componente de boleta electrónica y despacho externo no está integrado: la compra es retiro/entrega informativa y la dirección se conserva en el pedido. No se afirma integración con proveedor de pagos real.
+Esta versión conserva el catálogo y el CRUD de productos, agrega registro/login JWT, rol administrador, pedidos con reserva de inventario, pagos sandbox con webhook verificado, un API Gateway REST/GraphQL y pruebas automatizadas. En Docker Compose, clients, inventory, orders y payments se ejecutan en contenedores FastAPI separados, cada uno con una base lógica propia. El Gateway es el único componente publicado al host; GraphQL y los cuatro servicios se comunican por la red privada, con tokens internos distintos para cada vínculo. El modo `SERVICE_NAME=all` se mantiene para pruebas y desarrollo manual local. El componente de boleta electrónica y despacho externo no está integrado: la compra es retiro/entrega informativa y la dirección se conserva en el pedido. No se afirma integración con proveedor de pagos real.
 
-La página integra catálogo vía GraphQL (con fallback REST), registro/login, carrito, creación de pedidos, inicio de pago sandbox, historial y resumen GraphQL por pedido. Los contratos REST también están disponibles en Swagger. La confirmación final del pago la mantiene el webhook servidor-servidor, no el navegador.
+Los contratos de API mantienen los campos y operaciones del frontend existente; la entrega del backend puede ejecutarse sin integrar el frontend. Las rutas REST también están disponibles en Swagger. La confirmación final del pago la mantiene el webhook servidor-servidor, no el navegador.
 
 ## 1. Matriz de servicios y contratos
 
@@ -71,13 +71,15 @@ Cada pedido confirmado contiene al menos un detalle. La línea conserva nombre/p
 
 | Sistema | Autoridad de datos | Dependencias | Fallo |
 |---|---|---|---|
-| clients/auth | correo único, hash de contraseña, rol | JWT secret (variable externa), Mongo | 503 si base no está lista, 401 credenciales inválidas |
-| inventory | producto, precio, stock y disponibilidad | Mongo; consulta desde orders | Orden rechazada si no puede reservar; no se confirma stock insuficiente |
-| orders | dueño, líneas snapshot, dirección, estado de pedido | inventory para reserva/liberación | compensación de stock si falla escritura; operaciones idempotentes |
-| payments | intención, proveedor sandbox, estado, evento procesado | orders; secreto del webhook | no marca pagado por respuesta del frontend; eventos duplicados rechazados |
+| clients | correo único, hash de contraseña, rol; base `bd_weirdstyle_clients` | JWT secret; Mongo | 503 si base no está lista, 401 credenciales inválidas |
+| inventory | producto, precio, stock y disponibilidad; base `bd_weirdstyle_inventory` | Mongo; contrato interno para reserva/liberación desde orders | Orden rechazada si no puede reservar; reservas parciales compensadas ante error |
+| orders | dueño, líneas snapshot, dirección, estado de pedido; base `bd_weirdstyle_orders` | inventory para reserva/liberación; payments para comprobar pagos pendientes | compensación de stock si falla escritura; operaciones idempotentes |
+| payments | intención, proveedor sandbox, estado, evento procesado; base `bd_weirdstyle_payments` | orders; secreto del webhook | no marca pagado por respuesta del frontend; eventos duplicados rechazados |
 | API Gateway | rutas externas, CORS, tasa de solicitud | FastAPI y GraphQL privado | timeout, allowlist, error controlado |
 | GraphQL Gateway | composición de datos de lectura | orders e inventory REST | profundidad 8; batching por hasta 30 IDs; error de inventory como disponibilidad desconocida |
 | MongoDB | persistencia de los dominios | red privada Docker | `/health` reporta `database=down`; APIs transaccionales 503 |
+
+Contratos privados: orders llama `POST /internal/inventory/reserve` y `POST /internal/inventory/release`; payments consulta `GET /internal/orders/{id}/payment-info` y notifica `POST /internal/orders/{id}/payment-result`; orders consulta `GET /internal/payments/orders/{id}/pending`. Cada vínculo requiere su token dedicado en `X-Service-Token`. El cambio de estado de pago se aplica en orders; inventory conserva la autoridad sobre stock.
 
 ### Mapa de componentes/despliegue
 
@@ -85,14 +87,24 @@ Cada pedido confirmado contiene al menos un detalle. La línea conserva nombre/p
 flowchart TB
   Browser[Frontend navegador] -->|REST y GraphQL :4000| Gateway[Node API Gateway]
   Gateway -->|GraphQL interno :4001| GraphQL[GraphQL Gateway privado]
-  Gateway -->|REST interno| API[FastAPI: auth, inventory, orders, payments]
-  GraphQL -->|REST interno| API
-  API --> Mongo[(MongoDB 7: red privada)]
+  Gateway -->|REST interno| Clients[clients]
+  Gateway -->|REST interno| Inventory[inventory]
+  Gateway -->|REST interno| Orders[orders]
+  Gateway -->|REST interno| Payments[payments]
+  GraphQL -->|consulta| Inventory
+  GraphQL -->|consulta autenticada| Orders
+  Orders -->|reserva / libera stock| Inventory
+  Orders -->|consulta pago pendiente| Payments
+  Payments -->|consulta / actualiza estado| Orders
+  Clients --> Mongo[(MongoDB 7: red privada)]
+  Inventory --> Mongo
+  Orders --> Mongo
+  Payments --> Mongo
   Provider[Proveedor sandbox de pago] -->|Webhook secreto| Gateway
   Gateway -->|Proxy autenticado| API
 ```
 
-La configuración Compose no publica el puerto 8000 de FastAPI ni el 27017 de Mongo; el gateway es la única entrada de red. La ejecución manual local sí permite acceder a Uvicorn en 8000 para diagnóstico/Swagger.
+La configuración Compose no publica los puertos 8000 de los servicios ni el 27017 de Mongo; el Gateway es la única entrada de red desde el host. Cada servicio usa una base lógica propia. La ejecución manual en modo `SERVICE_NAME=all` permite acceder a Uvicorn en 8000 para diagnóstico/Swagger.
 
 ### Secuencia de compra
 
@@ -136,11 +148,11 @@ La API vuelve a comprobar rol y propiedad en cada request. El ocultamiento de el
 | Admin | Permitir | Permitir con JWT admin | Denegar flujo de compra ajeno | Permitir lectura supervisora | Denegar pedido ajeno | No aplica | Denegar |
 | Proveedor sandbox | Denegar | Denegar | Denegar | Denegar | Denegar | No aplica | Permitir solo con secreto y evento válido |
 
-Verificación: endpoint FastAPI y sistema de dominio; GraphQL propaga el Bearer al servicio antes de devolver campos sensibles.
+Verificación: los servicios validan firma, expiración, sujeto y rol del JWT. El servicio clients consulta su base para mostrar el perfil; orders y payments verifican propiedad del recurso a partir del sujeto autenticado.
 
 ## 5. API Gateway y políticas
 
-El gateway Node (`server.js`, puerto 4000) funciona como proxy REST de allowlist (`/api/auth`, `/api/clientes`, `/api/productos`, `/api/pedidos`, `/api/pagos`, `/api/admin`) y dirige `/graphql` al servicio Node privado (`graphql.js`, puerto 4001), que agrega inventory y orders. Tiene límite de payload 50 KiB, límite simple por IP configurable (`RATE_LIMIT_PER_MINUTE`, por defecto 120), métodos permitidos, CORS por origen y timeout upstream. FastAPI verifica JWT, rol, dueño y reglas de negocio; el gateway no reemplaza esas verificaciones. GraphQL limita profundidad a 8 y oculta introspección en `NODE_ENV=production`. Compose no publica el puerto 4001.
+El gateway Node (`server.js`, puerto 4000) aplica allowlist y enruta `/api/auth`, `/api/clientes` y `/api/admin` a clients; `/api/productos` a inventory; `/api/pedidos` a orders; y `/api/pagos` a payments. Dirige `/graphql` al GraphQL Gateway privado (`graphql.js`, puerto 4001), que agrega inventory y orders. Tiene límite de payload 50 KiB, límite simple por IP configurable (`RATE_LIMIT_PER_MINUTE`, por defecto 120), métodos permitidos, CORS por origen y timeout upstream. Los servicios validan JWT, rol, propietario y reglas del negocio. Las llamadas entre servicios usan endpoints internos autenticados con secretos distintos. GraphQL limita profundidad a 8 y oculta introspección en `NODE_ENV=production`. Compose no publica puertos internos.
 
 ### UML de gateway
 
@@ -197,12 +209,15 @@ Secreto: desarrollo desde variables de entorno, producción desde secret store d
 | `JWT_SECRET` | operador / servicio clients-auth | firmar/verificar JWT de usuario, HS256 | `.env` local excluido de Git; secret store en producción; rotar invalida tokens actuales |
 | `PAYMENT_WEBHOOK_SECRET` | proveedor sandbox / payments | validar solo notificaciones de pago | variable servidor; independiente de JWT; reemplazar en ambos extremos y revocar valor filtrado |
 | `MONGODB_URL` | operador / API FastAPI | acceso de la app a Mongo; mínimo usuario/DB en producción | variable de API, nunca de frontend; rotar contraseña en Mongo y reiniciar servicio |
-| Identidad `cliente_id` del JWT | auth service / orders y payments | vincular recurso al usuario autenticado | el gateway no acepta encabezados de identidad internos del cliente; reconsulta el sujeto en clients |
+| `ORDERS_INVENTORY_TOKEN` | orders → inventory | reservar/liberar stock por endpoints internos | presente solo en los contenedores orders e inventory; rotar en ambos |
+| `ORDERS_PAYMENTS_TOKEN` | orders → payments | consultar si el pedido tiene un pago pendiente | presente solo en orders y payments; rotar en ambos |
+| `PAYMENTS_ORDERS_TOKEN` | payments → orders | consultar el pedido y comunicar el resultado del webhook | presente solo en payments y orders; rotar en ambos |
+| Identidad `cliente_id` del JWT | auth service / orders y payments | vincular recurso al usuario autenticado | cada servicio valida la firma y toma sujeto/rol del token; no confía en headers de identidad añadidos por el navegador |
 | Identidad de contenedor `api` | Docker / Mongo | acceso de proceso backend por red privada | red Compose sin exposición de Mongo; producción debe usar credencial dedicada |
 
 No se comparte una credencial común entre JWT y proveedor de pago. Los valores reales no aparecen en el repositorio. `.env.example` solo contiene marcadores.
 
-Variables: `MONGODB_URL`, `MONGODB_DB`, `JWT_SECRET` (mín. 32 caracteres aleatorios), `PAYMENT_WEBHOOK_SECRET`, `CORS_ORIGINS`, `API_INTERNAL_URL`. `.env.example` trae nombres y marcadores, nunca secretos reales.
+Variables: `MONGODB_URL`, `MONGODB_DB`, `JWT_SECRET` (mín. 32 caracteres aleatorios), `PAYMENT_WEBHOOK_SECRET`, `ORDERS_INVENTORY_TOKEN`, `ORDERS_PAYMENTS_TOKEN`, `PAYMENTS_ORDERS_TOKEN`, `CORS_ORIGINS` y las URL internas de los servicios. `.env.example` trae nombres y marcadores, nunca secretos reales.
 
 ## 7. Datos personales y seguridad
 
@@ -235,11 +250,11 @@ Controles incluidos: CORS allowlist, cabeceras defensivas, validación Pydantic,
 - Contexto: storefront académico con catálogo pequeño y compras unitarias; flujos de checkout requieren respuesta inmediata y agregados pequeños. No hay flujo continuo, procesamiento intensivo ni un volumen medido que justifique streaming o almacenamiento analítico.
 - Alternativas: REST entre dominios con GraphQL de lectura; gRPC unary; gRPC streaming + servicio analítico y pipeline.
 - Decisión: mantener REST síncrono y GraphQL para composición de lectura. La agregación de pedido combina dos sistemas y es baja en volumen. No guardar datos personales en un almacén analítico.
-- Consecuencias: menos operación y despliegue; no se atribuye una mejora de rendimiento a gRPC. Se ejecutó una prueba de carga ligera local con `scripts/load_smoke.py` sobre `GET /api/productos`, con 100 solicitudes y 10 trabajadores concurrentes: 100 exitosas, 0 errores, duración de 0,254 s, throughput observado de 393,56 solicitudes/s y latencia p95 de 142,2 ms. Es una medición de humo del entorno local, no una estimación de capacidad en producción. La captura no registró consumo de CPU ni memoria; esos valores quedan pendientes antes de afirmar que se completó toda la medición de carga. Si aparecen necesidades de streaming, procesamiento intensivo o mayor volumen, se revisará el ADR.
+- Consecuencias: menos operación y despliegue; no se atribuye una mejora de rendimiento a gRPC. Se ejecutó una prueba de carga ligera local con `scripts/load_smoke.py` sobre `GET /api/productos`, con 100 solicitudes y 10 trabajadores concurrentes: 100 exitosas, 0 errores, duración de 0,254 s, throughput observado de 393,56 solicitudes/s y latencia p95 de 142,2 ms. Es una medición de humo local, no una estimación de capacidad en producción. La captura no registró consumo de CPU ni memoria; esos valores quedan pendientes. Si aparecen necesidades de streaming, procesamiento intensivo o mayor volumen, se revisará el ADR.
 
 ## 10. Pruebas y ejecución
 
-Pruebas automatizadas actuales: salud/docs sin Mongo; CORS POST; registro duplicado; login/perfil; denegación de CRUD a cliente; stock atómico; control de propiedad; total calculado en servidor; webhook aprobado/duplicado y rechazo sin secreto. La integración Node verifica que `resumenPedido` agregue orders e inventory y propague JWT. Ejecución en este workspace: 3 pruebas API simuladas y 1 prueba del gateway aprobadas.
+Pruebas automatizadas actuales: salud/docs sin Mongo; CORS POST; registro duplicado; login/perfil; denegación de CRUD a cliente; stock atómico; control de propiedad; total calculado en servidor; webhook aprobado/duplicado y rechazo sin secreto; rechazo de llamadas internas sin token; aislamiento de rutas por `SERVICE_NAME`. La integración Node verifica que `resumenPedido` agregue orders e inventory y propague JWT. Ejecución tras la separación: 5 pruebas API simuladas y 1 prueba del gateway aprobadas.
 
 ```bash
 # Windows PowerShell: crear .env a partir de .env.example y generar secretos aleatorios fuera del repositorio
@@ -262,10 +277,10 @@ Docs: `http://127.0.0.1:8000/docs` en modo manual; `http://127.0.0.1:4000/graphq
 
 ## Brechas pendientes de cierre de rúbrica
 
-- Ejecutar pruebas de integración reales con Mongo de Docker y capturar resultados del entorno local del equipo.
-- Completar la medición de carga con consumo de CPU y memoria; ya se registraron solicitudes, concurrencia, duración, throughput, errores y p95.
+- Ejecutar Docker Compose para comprobar en el equipo que los cuatro procesos y sus integraciones internas arrancan correctamente; Docker no está disponible en este entorno de edición.
 - Capturar evidencia visual de los formularios de registro/login/checkout e historial al ejecutar la tienda local.
 - Administración de catálogo/clientes funciona como API protegida y Swagger; aún no existe una pantalla de administración propia.
-- Despliegue separado de los cuatro microservicios como procesos/servicios; ahora son módulos dentro de FastAPI.
+- Ejecutar Docker Compose para verificar en el equipo que los cuatro procesos y sus integraciones internas arrancan correctamente; Docker no estaba disponible en las pruebas locales previas.
+- Completar la medición de carga con consumo de CPU y memoria.
 - Integración de proveedor de pago real de prueba, boleta electrónica, despacho y comprobantes cuando lo exija el caso elegido.
 - Adjuntar los diagramas Mermaid como fuente editable o exportarlos al formato solicitado por el equipo docente.

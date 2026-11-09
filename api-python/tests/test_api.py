@@ -1,5 +1,7 @@
 import asyncio
+import json
 import os
+import subprocess
 import sys
 
 import mongomock_motor
@@ -46,6 +48,23 @@ def test_docs_health_and_cors_even_if_database_is_down(client):
     assert response.status_code == 200
     assert "POST" in response.headers["access-control-allow-methods"]
     assert client.get("/pedidos/mios").status_code == 401
+
+
+def test_internal_inventory_contract_rejects_calls_without_service_identity(client):
+    response = client.post("/internal/inventory/reserve", json={"items": [{"producto_id": "665f10000000000000000001", "cantidad": 1}]})
+    assert response.status_code == 401
+
+
+def test_inventory_service_process_exposes_only_its_domain_routes():
+    code = "import json,main; print(json.dumps([r.path for r in main.app.routes if hasattr(r,'path')]))"
+    env = {**os.environ, "SERVICE_NAME": "inventory"}
+    result = subprocess.run([sys.executable, "-c", code], cwd=os.path.dirname(os.path.dirname(__file__)),
+                            env=env, check=True, capture_output=True, text=True)
+    routes = json.loads(result.stdout)
+    assert "/productos" in routes
+    assert "/internal/inventory/reserve" in routes
+    assert "/pedidos" not in routes
+    assert "/pagos/webhook/sandbox" not in routes
 
 
 def test_register_login_profile_and_customer_cannot_manage_products(client):

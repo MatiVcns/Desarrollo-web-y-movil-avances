@@ -127,14 +127,16 @@ async def cliente_autenticado(
         from bson import ObjectId
         if not ObjectId.is_valid(usuario_id):
             raise ValueError("ID invalido")
-        cliente = await _db["clientes"].find_one({"_id": ObjectId(usuario_id)})
-        if cliente is None:
-            raise ValueError("Usuario no existe")
-        return cliente
+        # Los demás microservicios validan identidad mediante el JWT y no consultan
+        # directamente la base de datos propiedad del servicio clients.
+        return {"_id": ObjectId(usuario_id), "rol": payload.get("role", "cliente")}
     except (InvalidTokenError, ValueError, KeyError):
         raise HTTPException(status_code=401, detail="Token invalido o expirado", headers={"WWW-Authenticate": "Bearer"})
 
 
 @router.get("/yo", response_model=ClientePublico)
 async def obtener_mi_perfil(cliente=Depends(cliente_autenticado)):
-    return ClientePublico(id=str(cliente["_id"]), nombre=cliente["nombre"], email=cliente["email"], rol=cliente.get("rol", "cliente"))
+    usuario = await _db["clientes"].find_one({"_id": cliente["_id"]})
+    if usuario is None:
+        raise HTTPException(status_code=401, detail="Usuario no existe")
+    return ClientePublico(id=str(usuario["_id"]), nombre=usuario["nombre"], email=usuario["email"], rol=usuario.get("rol", "cliente"))

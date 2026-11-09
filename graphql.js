@@ -6,6 +6,8 @@ const app = express();
 app.disable('x-powered-by');
 app.use(express.json({ limit: '50kb' }));
 const API_URL = (process.env.API_INTERNAL_URL || 'http://127.0.0.1:8000').replace(/\/$/, '');
+const INVENTORY_URL = (process.env.INVENTORY_URL || API_URL).replace(/\/$/, '');
+const ORDERS_URL = (process.env.ORDERS_URL || API_URL).replace(/\/$/, '');
 const isProduction = process.env.NODE_ENV === 'production';
 
 const typeDefs = gql`
@@ -29,12 +31,13 @@ const typeDefs = gql`
   }
 `;
 
-async function api(path, { token, method = 'GET', body } = {}) {
+async function api(path, { token, method = 'GET', body, service = 'inventory' } = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = token.startsWith('Bearer ') ? token : `Bearer ${token}`;
+  const baseUrl = service === 'orders' ? ORDERS_URL : INVENTORY_URL;
   let response;
   try {
-    response = await fetch(`${API_URL}${path}`, {
+    response = await fetch(`${baseUrl}${path}`, {
       method, headers, ...(body ? { body: JSON.stringify(body) } : {}), signal: AbortSignal.timeout(5000)
     });
   } catch (error) {
@@ -55,16 +58,16 @@ const resolvers = {
       if (q) params.set('q', q);
       if (categoria) params.set('categoria', categoria);
       params.set('limit', String(Math.min(Math.max(limit, 1), 100)));
-      return api(`/productos?${params}`);
+      return api(`/productos?${params}`, { service: 'inventory' });
     },
-    getProductoById: (_, { id }) => api(`/productos/${encodeURIComponent(id)}`),
-    misPedidos: (_, __, ctx) => api('/pedidos/mios', { token: ctx.authorization }),
+    getProductoById: (_, { id }) => api(`/productos/${encodeURIComponent(id)}`, { service: 'inventory' }),
+    misPedidos: (_, __, ctx) => api('/pedidos/mios', { token: ctx.authorization, service: 'orders' }),
     resumenPedido: async (_, { id }, ctx) => {
       if (!ctx.authorization) throw new ApolloError('Autenticación requerida', 'UNAUTHENTICATED');
-      const pedido = await api(`/pedidos/${encodeURIComponent(id)}`, { token: ctx.authorization });
+      const pedido = await api(`/pedidos/${encodeURIComponent(id)}`, { token: ctx.authorization, service: 'orders' });
       const ids = [...new Set(pedido.items.map(item => item.producto_id))];
       let productos = [];
-      try { productos = await api(`/productos?ids=${encodeURIComponent(ids.join(','))}&limit=30`); } catch (_) {}
+      try { productos = await api(`/productos?ids=${encodeURIComponent(ids.join(','))}&limit=30`, { service: 'inventory' }); } catch (_) {}
       const disponibles = new Map(productos.map(producto => [producto.id, producto]));
       const lineas = pedido.items.map(item => {
         const producto = disponibles.get(item.producto_id);
@@ -75,10 +78,10 @@ const resolvers = {
     }
   },
   Mutation: {
-    addProducto: (_, { input }, ctx) => api('/productos', { token: ctx.authorization, method: 'POST', body: input }),
-    updProducto: (_, { id, input }, ctx) => api(`/productos/${encodeURIComponent(id)}`, { token: ctx.authorization, method: 'PUT', body: input }),
+    addProducto: (_, { input }, ctx) => api('/productos', { token: ctx.authorization, method: 'POST', body: input, service: 'inventory' }),
+    updProducto: (_, { id, input }, ctx) => api(`/productos/${encodeURIComponent(id)}`, { token: ctx.authorization, method: 'PUT', body: input, service: 'inventory' }),
     delProducto: async (_, { id }, ctx) => {
-      await api(`/productos/${encodeURIComponent(id)}`, { token: ctx.authorization, method: 'DELETE' });
+      await api(`/productos/${encodeURIComponent(id)}`, { token: ctx.authorization, method: 'DELETE', service: 'inventory' });
       return { message: 'Producto desactivado' };
     }
   }
