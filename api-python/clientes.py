@@ -12,6 +12,8 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, EmailStr, Field
 from pymongo.errors import DuplicateKeyError
 
+from secret_config import get_secret
+
 router = APIRouter(prefix="/clientes", tags=["clientes"])
 security = HTTPBearer(auto_error=False)
 JWT_ALGORITHM = "HS256"
@@ -88,7 +90,7 @@ class TokenRespuesta(BaseModel):
 
 
 def obtener_secreto_jwt() -> str:
-    secreto = os.getenv("JWT_SECRET", "")
+    secreto = get_secret("JWT_SECRET")
     if len(secreto) < 32:
         raise HTTPException(status_code=503, detail="JWT_SECRET no configurado: se requieren al menos 32 caracteres")
     return secreto

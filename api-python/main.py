@@ -34,6 +34,8 @@ from clientes import (
     verificar_password,
 )
 
+from secret_config import get_secret, validate_mounted_secrets
+
 MONGODB_URL = os.getenv("MONGODB_URL", "mongodb://127.0.0.1:27017")
 DB_NAME = os.getenv("MONGODB_DB", "bd_weirdstyle")
 SERVICE_NAME = os.getenv("SERVICE_NAME", "all").strip().lower()
@@ -48,6 +50,7 @@ def now():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global mongo_client, DB
+    validate_mounted_secrets()
     mongo_client = AsyncIOMotorClient(
         MONGODB_URL,
         serverSelectionTimeoutMS=int(os.getenv("MONGO_TIMEOUT_MS", "5000")),
@@ -124,14 +127,14 @@ def require_db():
 
 
 def require_internal_token(token: str | None, env_name: str):
-    expected = os.getenv(env_name, "")
-    if not expected or not token or not hmac.compare_digest(token, expected):
+    expected = get_secret(env_name)
+    if not expected or not token or not hmac.compare_digest(token.encode("utf-8"), expected.encode("utf-8")):
         raise HTTPException(401, "Identidad de servicio no autorizada")
 
 
 async def internal_request(service_url: str, path: str, *, method: str = "GET", body: dict | None = None,
                            secret_name: str):
-    token = os.getenv(secret_name, "")
+    token = get_secret(secret_name)
     if not token:
         raise HTTPException(503, f"Credencial interna no configurada: {secret_name}")
     try:
@@ -520,8 +523,8 @@ async def internal_payment_pending(pedido_id: str, database=Depends(require_db),
 
 @app.post("/pagos/webhook/sandbox", tags=["payments"])
 async def webhook_pago(payload: dict, database=Depends(require_db), x_webhook_secret: str | None = Header(None)):
-    expected = os.getenv("PAYMENT_WEBHOOK_SECRET", "")
-    if not expected or x_webhook_secret != expected:
+    expected = get_secret("PAYMENT_WEBHOOK_SECRET")
+    if not expected or not x_webhook_secret or not hmac.compare_digest(x_webhook_secret.encode("utf-8"), expected.encode("utf-8")):
         raise HTTPException(401, "Webhook no autorizado")
     event_id = str(payload.get("event_id", ""))
     payment_id = str(payload.get("payment_id", ""))

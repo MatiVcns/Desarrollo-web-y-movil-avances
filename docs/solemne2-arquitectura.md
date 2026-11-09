@@ -4,7 +4,7 @@
 
 ## Alcance y estado honesto
 
-Esta versión conserva el catálogo y el CRUD de productos, agrega registro/login JWT, rol administrador, pedidos con reserva de inventario, pagos sandbox con webhook verificado, un API Gateway REST/GraphQL y pruebas automatizadas. En Docker Compose, clients, inventory, orders y payments se ejecutan en contenedores FastAPI separados, cada uno con una base lógica propia. El Gateway es el único componente publicado al host; GraphQL y los cuatro servicios se comunican por la red privada, con tokens internos distintos para cada vínculo. El modo `SERVICE_NAME=all` se mantiene para pruebas y desarrollo manual local. El componente de boleta electrónica y despacho externo no está integrado: la compra es retiro/entrega informativa y la dirección se conserva en el pedido. No se afirma integración con proveedor de pagos real.
+Esta versión conserva el catálogo y el CRUD de productos, agrega registro/login JWT, rol administrador, pedidos con reserva de inventario, pagos sandbox con webhook verificado, un API Gateway REST/GraphQL y pruebas automatizadas. En Docker Compose, clients, inventory, orders y payments se ejecutan en contenedores FastAPI separados, cada uno con una base lógica propia. El Gateway es el único componente publicado al host; GraphQL y los cuatro servicios se comunican por la red privada, con tokens internos distintos para cada vínculo. El modo `SERVICE_NAME=all` se mantiene para pruebas y desarrollo manual local. El despliegue actualizado gestiona JWT, webhook y credenciales internas mediante archivos montados por Compose. El componente de boleta electrónica y despacho externo no está integrado: la compra es retiro/entrega informativa y la dirección se conserva en el pedido. No se afirma integración con proveedor de pagos real.
 
 Los contratos de API mantienen los campos y operaciones del frontend existente; la entrega del backend puede ejecutarse sin integrar el frontend. Las rutas REST también están disponibles en Swagger. La confirmación final del pago la mantiene el webhook servidor-servidor, no el navegador.
 
@@ -174,7 +174,7 @@ classDiagram
   AuthenticationPolicy ..> SecretProvider
 ```
 
-Secreto: desarrollo desde variables de entorno, producción desde secret store de la plataforma. Nunca se incluye el valor en documentación, logs o navegador. El pago sandbox usa una credencial de webhook distinta del secreto JWT.
+Administrador local de secretos: el operador genera y rota los archivos con scripts/gestionar_secretos.py. Compose los monta en modo de solo lectura y concede cada uno únicamente a sus consumidores. El modo manual conserva variables de entorno. Nunca se incluye el valor en documentación, logs o navegador. El pago sandbox usa una credencial de webhook distinta del secreto JWT.
 
 ## 6. Rutas y secretos de integración
 
@@ -206,8 +206,8 @@ Secreto: desarrollo desde variables de entorno, producción desde secret store d
 
 | Referencia | Emisor/consumidor | Uso y alcance | Ubicación, rotación y revocación |
 |---|---|---|---|
-| `JWT_SECRET` | operador / servicio clients-auth | firmar/verificar JWT de usuario, HS256 | `.env` local excluido de Git; secret store en producción; rotar invalida tokens actuales |
-| `PAYMENT_WEBHOOK_SECRET` | proveedor sandbox / payments | validar solo notificaciones de pago | variable servidor; independiente de JWT; reemplazar en ambos extremos y revocar valor filtrado |
+| `JWT_SECRET` | operador / servicio clients-auth | firmar/verificar JWT de usuario, HS256 | `.secrets/jwt_secret` local excluido de Git; rotar invalida tokens actuales |
+| `PAYMENT_WEBHOOK_SECRET` | proveedor sandbox / payments | validar solo notificaciones de pago | archivo montado solo en payments; independiente de JWT; reemplazar en ambos extremos y revocar valor filtrado |
 | `MONGODB_URL` | operador / API FastAPI | acceso de la app a Mongo; mínimo usuario/DB en producción | variable de API, nunca de frontend; rotar contraseña en Mongo y reiniciar servicio |
 | `ORDERS_INVENTORY_TOKEN` | orders → inventory | reservar/liberar stock por endpoints internos | presente solo en los contenedores orders e inventory; rotar en ambos |
 | `ORDERS_PAYMENTS_TOKEN` | orders → payments | consultar si el pedido tiene un pago pendiente | presente solo en orders y payments; rotar en ambos |
@@ -257,9 +257,10 @@ Controles incluidos: CORS allowlist, cabeceras defensivas, validación Pydantic,
 Pruebas automatizadas actuales: salud/docs sin Mongo; CORS POST; registro duplicado; login/perfil; denegación de CRUD a cliente; stock atómico; control de propiedad; total calculado en servidor; webhook aprobado/duplicado y rechazo sin secreto; rechazo de llamadas internas sin token; aislamiento de rutas por `SERVICE_NAME`. La integración Node verifica que `resumenPedido` agregue orders e inventory y propague JWT. Ejecución tras la separación: 5 pruebas API simuladas y 1 prueba del gateway aprobadas.
 
 ```bash
-# Windows PowerShell: crear .env a partir de .env.example y generar secretos aleatorios fuera del repositorio
+# Desde la raíz, generar o conservar secretos locales fuera de Git
+python scripts/gestionar_secretos.py
 # Iniciar Mongo + API Gateway
-Docker compose up --build
+docker compose up -d --build
 # Frontend: abrir frontend/index.html con Live Server (puerto 5500)
 # Swagger local solo con modo manual: uvicorn main:app --host 127.0.0.1 --port 8000 --reload (desde api-python)
 # Tests
@@ -277,10 +278,9 @@ Docs: `http://127.0.0.1:8000/docs` en modo manual; `http://127.0.0.1:4000/graphq
 
 ## Brechas pendientes de cierre de rúbrica
 
-- Ejecutar Docker Compose para comprobar en el equipo que los cuatro procesos y sus integraciones internas arrancan correctamente; Docker no está disponible en este entorno de edición.
+- Docker Compose verificado en Windows con la versión 2460a5f. La variante con montajes de secretos requiere repetir la comprobación de arranque y autenticación.
 - Capturar evidencia visual de los formularios de registro/login/checkout e historial al ejecutar la tienda local.
 - Administración de catálogo/clientes funciona como API protegida y Swagger; aún no existe una pantalla de administración propia.
-- Ejecutar Docker Compose para verificar en el equipo que los cuatro procesos y sus integraciones internas arrancan correctamente; Docker no estaba disponible en las pruebas locales previas.
-- Completar la medición de carga con consumo de CPU y memoria.
+- Carga Docker documentada: 100 solicitudes, 0 errores y p95 por tanda de 121,1 a 193,3 ms. Muestra puntual de CPU/RAM en Gateway (0,00 % / 27,38 MiB), inventory (0,14 % / 50,09 MiB) y MongoDB (0,30 % / 83,81 MiB).
 - Integración de proveedor de pago real de prueba, boleta electrónica, despacho y comprobantes cuando lo exija el caso elegido.
 - Adjuntar los diagramas Mermaid como fuente editable o exportarlos al formato solicitado por el equipo docente.

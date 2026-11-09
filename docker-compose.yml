@@ -19,8 +19,10 @@ services:
       SERVICE_NAME: clients
       MONGODB_URL: mongodb://mongodb:27017
       MONGODB_DB: bd_weirdstyle_clients
-      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET en .env}
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
       MONGO_TIMEOUT_MS: 5000
+    secrets:
+      - jwt_secret
     depends_on:
       mongodb:
         condition: service_healthy
@@ -39,9 +41,12 @@ services:
       SERVICE_NAME: inventory
       MONGODB_URL: mongodb://mongodb:27017
       MONGODB_DB: bd_weirdstyle_inventory
-      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET en .env}
-      ORDERS_INVENTORY_TOKEN: ${ORDERS_INVENTORY_TOKEN:?Configura ORDERS_INVENTORY_TOKEN en .env}
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      ORDERS_INVENTORY_TOKEN_FILE: /run/secrets/orders_inventory_token
       MONGO_TIMEOUT_MS: 5000
+    secrets:
+      - jwt_secret
+      - orders_inventory_token
     depends_on:
       mongodb:
         condition: service_healthy
@@ -60,13 +65,18 @@ services:
       SERVICE_NAME: orders
       MONGODB_URL: mongodb://mongodb:27017
       MONGODB_DB: bd_weirdstyle_orders
-      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET en .env}
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
       INVENTORY_URL: http://inventory:8000
       PAYMENTS_URL: http://payments:8000
-      ORDERS_INVENTORY_TOKEN: ${ORDERS_INVENTORY_TOKEN:?Configura ORDERS_INVENTORY_TOKEN en .env}
-      ORDERS_PAYMENTS_TOKEN: ${ORDERS_PAYMENTS_TOKEN:?Configura ORDERS_PAYMENTS_TOKEN en .env}
-      PAYMENTS_ORDERS_TOKEN: ${PAYMENTS_ORDERS_TOKEN:?Configura PAYMENTS_ORDERS_TOKEN en .env}
+      ORDERS_INVENTORY_TOKEN_FILE: /run/secrets/orders_inventory_token
+      ORDERS_PAYMENTS_TOKEN_FILE: /run/secrets/orders_payments_token
+      PAYMENTS_ORDERS_TOKEN_FILE: /run/secrets/payments_orders_token
       MONGO_TIMEOUT_MS: 5000
+    secrets:
+      - jwt_secret
+      - orders_inventory_token
+      - orders_payments_token
+      - payments_orders_token
     depends_on:
       mongodb:
         condition: service_healthy
@@ -85,12 +95,17 @@ services:
       SERVICE_NAME: payments
       MONGODB_URL: mongodb://mongodb:27017
       MONGODB_DB: bd_weirdstyle_payments
-      JWT_SECRET: ${JWT_SECRET:?Configura JWT_SECRET en .env}
-      PAYMENT_WEBHOOK_SECRET: ${PAYMENT_WEBHOOK_SECRET:?Configura PAYMENT_WEBHOOK_SECRET en .env}
+      JWT_SECRET_FILE: /run/secrets/jwt_secret
+      PAYMENT_WEBHOOK_SECRET_FILE: /run/secrets/payment_webhook_secret
       ORDERS_URL: http://orders:8000
-      PAYMENTS_ORDERS_TOKEN: ${PAYMENTS_ORDERS_TOKEN:?Configura PAYMENTS_ORDERS_TOKEN en .env}
-      ORDERS_PAYMENTS_TOKEN: ${ORDERS_PAYMENTS_TOKEN:?Configura ORDERS_PAYMENTS_TOKEN en .env}
+      PAYMENTS_ORDERS_TOKEN_FILE: /run/secrets/payments_orders_token
+      ORDERS_PAYMENTS_TOKEN_FILE: /run/secrets/orders_payments_token
       MONGO_TIMEOUT_MS: 5000
+    secrets:
+      - jwt_secret
+      - payment_webhook_secret
+      - payments_orders_token
+      - orders_payments_token
     depends_on:
       mongodb:
         condition: service_healthy
@@ -157,3 +172,15 @@ networks:
 
 volumes:
   weirdstyle-mongo:
+
+secrets:
+  jwt_secret:
+    file: ./.secrets/jwt_secret
+  orders_inventory_token:
+    file: ./.secrets/orders_inventory_token
+  orders_payments_token:
+    file: ./.secrets/orders_payments_token
+  payments_orders_token:
+    file: ./.secrets/payments_orders_token
+  payment_webhook_secret:
+    file: ./.secrets/payment_webhook_secret
