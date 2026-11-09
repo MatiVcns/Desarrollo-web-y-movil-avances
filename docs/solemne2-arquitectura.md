@@ -235,7 +235,7 @@ Controles incluidos: CORS allowlist, cabeceras defensivas, validación Pydantic,
 - Contexto: storefront académico con catálogo pequeño y compras unitarias; flujos de checkout requieren respuesta inmediata y agregados pequeños. No hay flujo continuo, procesamiento intensivo ni un volumen medido que justifique streaming o almacenamiento analítico.
 - Alternativas: REST entre dominios con GraphQL de lectura; gRPC unary; gRPC streaming + servicio analítico y pipeline.
 - Decisión: mantener REST síncrono y GraphQL para composición de lectura. La agregación de pedido combina dos sistemas y es baja en volumen. No guardar datos personales en un almacén analítico.
-- Consecuencias: menos operación y despliegue; no se atribuye una mejora de rendimiento a gRPC. Se medirá con `scripts/load_smoke.py` sobre `/health` y `/productos` en un entorno con Mongo/Compose. Si carga medida supera límites o aparece procesamiento de eventos, se revisará el ADR. La prueba de carga y sus métricas no se deben presentar como ejecutadas hasta correrla en el equipo con Mongo activo.
+- Consecuencias: menos operación y despliegue; no se atribuye una mejora de rendimiento a gRPC. Se ejecutó una prueba de carga ligera local con `scripts/load_smoke.py` sobre `GET /api/productos`, con 100 solicitudes y 10 trabajadores concurrentes: 100 exitosas, 0 errores, duración de 0,254 s, throughput observado de 393,56 solicitudes/s y latencia p95 de 142,2 ms. Es una medición de humo del entorno local, no una estimación de capacidad en producción. La captura no registró consumo de CPU ni memoria; esos valores quedan pendientes antes de afirmar que se completó toda la medición de carga. Si aparecen necesidades de streaming, procesamiento intensivo o mayor volumen, se revisará el ADR.
 
 ## 10. Pruebas y ejecución
 
@@ -263,6 +263,7 @@ Docs: `http://127.0.0.1:8000/docs` en modo manual; `http://127.0.0.1:4000/graphq
 ## Brechas pendientes de cierre de rúbrica
 
 - Ejecutar pruebas de integración reales con Mongo de Docker y capturar resultados del entorno local del equipo.
+- Completar la medición de carga con consumo de CPU y memoria; ya se registraron solicitudes, concurrencia, duración, throughput, errores y p95.
 - Capturar evidencia visual de los formularios de registro/login/checkout e historial al ejecutar la tienda local.
 - Administración de catálogo/clientes funciona como API protegida y Swagger; aún no existe una pantalla de administración propia.
 - Despliegue separado de los cuatro microservicios como procesos/servicios; ahora son módulos dentro de FastAPI.
