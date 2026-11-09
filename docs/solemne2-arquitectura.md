@@ -278,7 +278,7 @@ Docs: `http://127.0.0.1:8000/docs` en modo manual; `http://127.0.0.1:4000/graphq
 
 ## Brechas pendientes de cierre de rúbrica
 
-- Docker Compose verificado en Windows con la versión 2460a5f. La variante con montajes de secretos requiere repetir la comprobación de arranque y autenticación.
+- Docker Compose verificado en Windows con las versiones `2460a5f` y `5708667`. En la versión con secretos montados, los siete contenedores arrancaron, el webhook aprobó el pago sandbox, el pedido quedó `pagado` y el stock del producto probado bajó de 19 a 18 unidades. Las capturas están en el informe de entrega.
 - Capturar evidencia visual de los formularios de registro/login/checkout e historial al ejecutar la tienda local.
 - Administración de catálogo/clientes funciona como API protegida y Swagger; aún no existe una pantalla de administración propia.
 - Carga Docker documentada: 100 solicitudes, 0 errores y p95 por tanda de 121,1 a 193,3 ms. Muestra puntual de CPU/RAM en Gateway (0,00 % / 27,38 MiB), inventory (0,14 % / 50,09 MiB) y MongoDB (0,30 % / 83,81 MiB).
